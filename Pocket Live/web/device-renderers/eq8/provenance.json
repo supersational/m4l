@@ -1,0 +1,14 @@
+{
+  "source": "EQ Eight independent remake, 131 reference states",
+  "files": {
+    "model.js": "699b5d8e36eedda65829097859326147a641a1fca3df3bba3386e20ab287afa2",
+    "device.js": "117981617c6dc1581f9fe30d5c2340de777c6a47b17538ef1b2ba781744c4c6e",
+    "svg.js": "c5041bb766251d62b27d4fe8c3f2c7d944a5de31d08d9cbb25db795e31756e37"
+  },
+  "omitted": [
+    "local controller and synthetic IDs",
+    "comparison/ranking harness",
+    "capture assets",
+    "network transport"
+  ]
+}

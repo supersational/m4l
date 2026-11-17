@@ -1,0 +1,15 @@
+{
+  "source": "Echo independent reference challenge, reviewed final pass",
+  "files": {
+    "parameters.js": "d82156674f7601be4c62b590fafc4caa68019549690dd78b1abee473cc39269e",
+    "model.js": "ed37f01564873f6328bc10c05eb5399ef6331ec613396185cb9f46ca0dba7df5",
+    "controls.js": "9633f42664a69b55ad11f517298f8cf174ce66cbe74bbed81b1d78c0fca082c0",
+    "pages.js": "03ce2304764a2ab1768225579a872e9da71adafb094b405c420b313905027e4e",
+    "state.js": "5e59a9b5e18112ec1f8be7efaf0b0f6b3a9ed3d1ed52bf26af2946e396eae021"
+  },
+  "omitted": [
+    "dataset loader",
+    "comparison harness",
+    "demo interactions"
+  ]
+}

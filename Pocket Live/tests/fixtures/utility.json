@@ -1,0 +1,190 @@
+{
+  "name": "Utility",
+  "className": "StereoGain",
+  "classDisplayName": "Utility",
+  "parameters": [
+    {
+      "display": "On",
+      "id": 1000,
+      "name": "Device On",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 1,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1001,
+      "name": "Left Inv",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1002,
+      "name": "Right Inv",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Stereo",
+      "id": 1003,
+      "name": "Channel Mode",
+      "defaultValue": null,
+      "items": [
+        "Left",
+        "Stereo",
+        "Right",
+        "Swap"
+      ],
+      "value": 1,
+      "min": 0,
+      "max": 3,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "100 %",
+      "id": 1004,
+      "name": "Stereo Width",
+      "defaultValue": 1,
+      "items": [],
+      "value": 1,
+      "min": 0,
+      "max": 2,
+      "quantized": false,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1005,
+      "name": "Mono",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1006,
+      "name": "Bass Mono",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "120 Hz",
+      "id": 1007,
+      "name": "Bass Freq",
+      "defaultValue": 0.3802112340927124,
+      "items": [],
+      "value": 0.3802112340927124,
+      "min": 0,
+      "max": 1,
+      "quantized": false,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "C",
+      "id": 1008,
+      "name": "Balance",
+      "defaultValue": 0,
+      "items": [],
+      "value": 0,
+      "min": -1,
+      "max": 1,
+      "quantized": false,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "0.00 dB",
+      "id": 1009,
+      "name": "Output",
+      "defaultValue": 0,
+      "items": [],
+      "value": 0,
+      "min": -1,
+      "max": 1,
+      "quantized": false,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1010,
+      "name": "Mute",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    },
+    {
+      "display": "Off",
+      "id": 1011,
+      "name": "DC Filter",
+      "defaultValue": null,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "value": 0,
+      "min": 0,
+      "max": 1,
+      "quantized": true,
+      "enabled": true,
+      "automation": 0
+    }
+  ],
+  "id": 1
+}

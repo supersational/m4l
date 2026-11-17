@@ -1,0 +1,31 @@
+{
+  "unit": [
+    "unit/state/parameter-sync.cjs",
+    "unit/interaction/device-gestures.cjs",
+    "unit/interaction/device-streaming.cjs",
+    "unit/interaction/html-knobs.cjs",
+    "unit/interaction/touch-zoom.cjs",
+    "unit/interaction/eq8-touch.cjs",
+    "unit/profiles/utility.cjs",
+    "unit/profiles/echo.cjs",
+    "unit/profiles/pins-and-filter.cjs",
+    "unit/harness/acceptance.py",
+    "unit/interaction/svg-lifecycle.cjs",
+    "unit/harness/protocol-client.py"
+  ],
+  "integration": [
+    "integration/native/recording.cjs",
+    "integration/native/eq8.cjs",
+    "integration/native/large-set.cjs",
+    "integration/relay/presence.cjs",
+    "integration/audio/waveforms.cjs",
+    "integration/browser/app-interactions.cjs",
+    "integration/browser/frame-coalescing.cjs",
+    "integration/bridge/coordination.cjs",
+    "integration/transport/cloud.cjs",
+    "integration/transport/local.cjs",
+    "integration/state/multi-client-queues.cjs",
+    "integration/state/node-copy.cjs",
+    "integration/transport/network-proxy.cjs"
+  ]
+}

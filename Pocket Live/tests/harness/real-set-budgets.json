@@ -1,0 +1,21 @@
+{
+  "default": {
+    "first paint: every track appears, no offline banner": { "paintedMs": 8000, "filledMs": 30000 },
+    "snapshot really exceeds Max's symbol limit": { "stateChars": 1500000 },
+    "Live's own changes are observed": { "readyMs": 30000 },
+    "browser mute reaches Live quickly": { "ackMs": 150 },
+    "native clip launch reaches the browser": { "stopMs": 1000 },
+    "an open device follows Live without polling": { "ms": 500 },
+    "idle Set does not flood the connection": { "snapshotsIn11s": 1 }
+  },
+  "large": {
+    "first paint: every track appears, no offline banner": { "paintedMs": 15000, "filledMs": 60000 },
+    "Live's own changes are observed": { "readyMs": 60000 }
+  },
+  "returns": {
+    "Live's own changes are observed": { "readyMs": 40000 }
+  },
+  "scenes": {
+    "Live's own changes are observed": { "readyMs": 40000 }
+  }
+}

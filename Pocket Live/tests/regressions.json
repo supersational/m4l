@@ -1,0 +1,10 @@
+{
+  "unit/state/parameter-sync.cjs": "Proven duplicate-write, stale-ACK and reset races; exact asynchronous interleavings are hard to force in Live.",
+  "unit/interaction/device-streaming.cjs": "Proven stale timer/ownership transfer bug and deterministic relay-rate budget.",
+  "unit/interaction/svg-lifecycle.cjs": "Proven deleted/replaced-target writes between release and timer boundaries.",
+  "integration/transport/local.cjs": "Actual HTTP/WebSocket I/O plus malformed/binary/slow-client isolation and shutdown regressions.",
+  "integration/transport/cloud.cjs": "Proven closed-socket/repeated-start races without depending on real network timing.",
+  "integration/relay/presence.cjs": "Proven null-message and retired-host bugs; exact relay lifecycle callbacks are controlled.",
+  "unit/harness/acceptance.py": "Checks the test oracle cannot falsely pass unanimous wrong clients, missing Live, or momentary agreement.",
+  "integration/transport/network-proxy.cjs": "Real network I/O verifies the latency injector actually delays both directions, preserves FIFO/binary payloads, discards old queues, and propagates policy closure; no Live simulation."
+}

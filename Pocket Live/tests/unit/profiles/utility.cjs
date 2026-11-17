@@ -1,0 +1,13 @@
+const {ROOT}=require('../../harness/paths.cjs');
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={};vm.createContext(context);vm.runInContext(fs.readFileSync(ROOT+'/web/device-ui.js','utf8')+'\n'+fs.readFileSync(ROOT+'/web/utility-profile.js','utf8')+'\nglobalThis.profile=UtilityProfile;',context);
+const d=JSON.parse(fs.readFileSync(ROOT+'/tests/fixtures/utility.json','utf8'));
+assert.equal(context.profile.matches(d,'StereoGain'),true);
+assert.equal(context.profile.matches(d,'AutoFilter'),false);
+assert.equal(context.profile.matches({...d,parameters:d.parameters.slice(1)},'StereoGain'),false);
+const html=context.profile.render({...d,name:'Renamed <Utility>'});
+for(const p of d.parameters)assert.ok(html.includes(`="${p.id}"`),p.name+' not bound');
+assert.ok(html.includes('Renamed &lt;Utility&gt;'));assert.ok(html.includes('All parameters'));assert.ok(!html.includes('Bass Mono Audition — use in Live'));
+const changed=JSON.parse(JSON.stringify(d));changed.parameters.find(p=>p.name==='Output').max=2;assert.equal(context.profile.matches(changed,'StereoGain'),false);
+for(const p of d.parameters.filter(p=>!p.enabled))assert.ok(html.includes('disabled'));
+console.log('Passed: class/signature fallback, all 12 live bindings, rename escaping, parameter fallback.');

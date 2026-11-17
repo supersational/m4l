@@ -1,0 +1,798 @@
+{
+  "name": "Auto Filter",
+  "className": "AutoFilter2",
+  "parameters": [
+    {
+      "id": 1000,
+      "index": 0,
+      "name": "Device On",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "On",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1001,
+      "index": 1,
+      "name": "Frequency",
+      "value": 0.8993062973022461,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "9.98 kHz",
+      "enabled": true,
+      "defaultValue": 0.8996566534042358,
+      "scale": [
+        {
+          "value": 0.0,
+          "display": "20.0 Hz"
+        },
+        {
+          "value": 0.03125,
+          "display": "24.8 Hz"
+        },
+        {
+          "value": 0.0625,
+          "display": "30.8 Hz"
+        },
+        {
+          "value": 0.09375,
+          "display": "38.2 Hz"
+        },
+        {
+          "value": 0.125,
+          "display": "47.4 Hz"
+        },
+        {
+          "value": 0.15625,
+          "display": "58.9 Hz"
+        },
+        {
+          "value": 0.1875,
+          "display": "73.0 Hz"
+        },
+        {
+          "value": 0.21875,
+          "display": "90.6 Hz"
+        },
+        {
+          "value": 0.25,
+          "display": "112 Hz"
+        },
+        {
+          "value": 0.28125,
+          "display": "140 Hz"
+        },
+        {
+          "value": 0.3125,
+          "display": "173 Hz"
+        },
+        {
+          "value": 0.34375,
+          "display": "215 Hz"
+        },
+        {
+          "value": 0.375,
+          "display": "267 Hz"
+        },
+        {
+          "value": 0.40625,
+          "display": "331 Hz"
+        },
+        {
+          "value": 0.4375,
+          "display": "411 Hz"
+        },
+        {
+          "value": 0.46875,
+          "display": "510 Hz"
+        },
+        {
+          "value": 0.5,
+          "display": "632 Hz"
+        },
+        {
+          "value": 0.53125,
+          "display": "785 Hz"
+        },
+        {
+          "value": 0.5625,
+          "display": "974 Hz"
+        },
+        {
+          "value": 0.59375,
+          "display": "1.21 kHz"
+        },
+        {
+          "value": 0.625,
+          "display": "1.50 kHz"
+        },
+        {
+          "value": 0.65625,
+          "display": "1.86 kHz"
+        },
+        {
+          "value": 0.6875,
+          "display": "2.31 kHz"
+        },
+        {
+          "value": 0.71875,
+          "display": "2.87 kHz"
+        },
+        {
+          "value": 0.75,
+          "display": "3.56 kHz"
+        },
+        {
+          "value": 0.78125,
+          "display": "4.41 kHz"
+        },
+        {
+          "value": 0.8125,
+          "display": "5.48 kHz"
+        },
+        {
+          "value": 0.84375,
+          "display": "6.80 kHz"
+        },
+        {
+          "value": 0.875,
+          "display": "8.43 kHz"
+        },
+        {
+          "value": 0.90625,
+          "display": "10.5 kHz"
+        },
+        {
+          "value": 0.9375,
+          "display": "13.0 kHz"
+        },
+        {
+          "value": 0.96875,
+          "display": "16.1 kHz"
+        },
+        {
+          "value": 1.0,
+          "display": "20.0 kHz"
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "index": 2,
+      "name": "Resonance",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1003,
+      "index": 3,
+      "name": "Filter Morph",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1004,
+      "index": 4,
+      "name": "Filter Type",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 9.0,
+      "quantized": true,
+      "items": [
+        "Low-pass",
+        "High-pass",
+        "Band-pass",
+        "Notch",
+        "Morph",
+        "DJ",
+        "Comb",
+        "Resampling",
+        "Notch+LP",
+        "Vowel"
+      ],
+      "display": "Low-pass",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1005,
+      "index": 5,
+      "name": "Filter Slope",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "12dB",
+        "24dB"
+      ],
+      "display": "24dB",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1006,
+      "index": 6,
+      "name": "Morph Slope",
+      "value": 2.0,
+      "min": 0.0,
+      "max": 3.0,
+      "quantized": true,
+      "items": [
+        "6dB",
+        "12dB",
+        "24dB",
+        "48dB"
+      ],
+      "display": "24dB",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1007,
+      "index": 7,
+      "name": "Circuit",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 3.0,
+      "quantized": true,
+      "items": [
+        "SVF",
+        "DFM",
+        "MS2",
+        "PRD"
+      ],
+      "display": "SVF",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1008,
+      "index": 8,
+      "name": "Drive",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1009,
+      "index": 9,
+      "name": "Control",
+      "value": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.5
+    },
+    {
+      "id": 1010,
+      "index": 10,
+      "name": "Pitch",
+      "value": 0.0,
+      "min": -36.0,
+      "max": 36.0,
+      "quantized": false,
+      "items": [],
+      "display": "0 st",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1011,
+      "index": 11,
+      "name": "Formant",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1012,
+      "index": 12,
+      "name": "LFO Amount",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1013,
+      "index": 13,
+      "name": "LFO Wave",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 7.0,
+      "quantized": true,
+      "items": [
+        "Sine",
+        "Triangle",
+        "Saw",
+        "Square",
+        "Ramp Up",
+        "Ramp Down",
+        "Wander",
+        "S & H"
+      ],
+      "display": "Sine",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1014,
+      "index": 14,
+      "name": "LFO T Mode",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 5.0,
+      "quantized": true,
+      "items": [
+        "Rate",
+        "Time",
+        "Synced",
+        "Triplet",
+        "Dotted",
+        "Sixteenth"
+      ],
+      "display": "Rate",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1015,
+      "index": 15,
+      "name": "LFO Freq",
+      "value": 0.35995158553123474,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "1.00 Hz",
+      "enabled": true,
+      "defaultValue": 0.35995158553123474
+    },
+    {
+      "id": 1016,
+      "index": 16,
+      "name": "LFO Time",
+      "value": 0.1973896026611328,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "1.00 s",
+      "enabled": true,
+      "defaultValue": 0.1973896026611328
+    },
+    {
+      "id": 1017,
+      "index": 17,
+      "name": "LFO Rate",
+      "value": 4.0,
+      "min": 0.0,
+      "max": 21.0,
+      "quantized": false,
+      "items": [],
+      "display": "2",
+      "enabled": true,
+      "defaultValue": 4.0
+    },
+    {
+      "id": 1018,
+      "index": 18,
+      "name": "LFO 16th",
+      "value": 16.0,
+      "min": 1.0,
+      "max": 64.0,
+      "quantized": false,
+      "items": [],
+      "display": "16  / 16",
+      "enabled": true,
+      "defaultValue": 16.0
+    },
+    {
+      "id": 1019,
+      "index": 19,
+      "name": "LFO Phase",
+      "value": 0.011111111380159855,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "4.0\u00b0",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1020,
+      "index": 20,
+      "name": "LFO Offset",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0\u00b0",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1021,
+      "index": 21,
+      "name": "LFO S Mode",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Phase",
+        "Spin"
+      ],
+      "display": "Phase",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1022,
+      "index": 22,
+      "name": "LFO Spin",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1023,
+      "index": 23,
+      "name": "LFO Morph",
+      "value": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.5
+    },
+    {
+      "id": 1024,
+      "index": 24,
+      "name": "LFO Smoothing",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.0
+    },
+    {
+      "id": 1025,
+      "index": 25,
+      "name": "LFO Q Mode",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 2.0,
+      "quantized": true,
+      "items": [
+        "None",
+        "Steps",
+        "S&H"
+      ],
+      "display": "None",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1026,
+      "index": 26,
+      "name": "LFO Steps",
+      "value": 8.0,
+      "min": 2.0,
+      "max": 64.0,
+      "quantized": false,
+      "items": [],
+      "display": "8 ",
+      "enabled": true,
+      "defaultValue": 8.0
+    },
+    {
+      "id": 1027,
+      "index": 27,
+      "name": "LFO S&H",
+      "value": -4.0,
+      "min": -6.0,
+      "max": 0.0,
+      "quantized": false,
+      "items": [],
+      "display": "1 / 16",
+      "enabled": true,
+      "defaultValue": -4.0
+    },
+    {
+      "id": 1028,
+      "index": 28,
+      "name": "Env Amount",
+      "value": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 %",
+      "enabled": true,
+      "defaultValue": 0.5
+    },
+    {
+      "id": 1029,
+      "index": 29,
+      "name": "Env Attack",
+      "value": 0.25084149837493896,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "1.00 ms",
+      "enabled": true,
+      "defaultValue": 0.25084149837493896
+    },
+    {
+      "id": 1030,
+      "index": 30,
+      "name": "Env Hold On",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "On",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1031,
+      "index": 31,
+      "name": "Env Release",
+      "value": 0.47415632009506226,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "250 ms",
+      "enabled": true,
+      "defaultValue": 0.47415632009506226
+    },
+    {
+      "id": 1032,
+      "index": 32,
+      "name": "Env S&H On",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "Off",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1033,
+      "index": 33,
+      "name": "Env S&H",
+      "value": -4.0,
+      "min": -6.0,
+      "max": 0.0,
+      "quantized": false,
+      "items": [],
+      "display": "1 / 16",
+      "enabled": true,
+      "defaultValue": -4.0
+    },
+    {
+      "id": 1034,
+      "index": 34,
+      "name": "Output",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 dB",
+      "enabled": true,
+      "defaultValue": 1.0
+    },
+    {
+      "id": 1035,
+      "index": 35,
+      "name": "Soft Clip On",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "Off",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1036,
+      "index": 36,
+      "name": "Dry/Wet",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "100 %",
+      "enabled": true,
+      "defaultValue": 1.0
+    },
+    {
+      "id": 1037,
+      "index": 37,
+      "name": "S/C EQ On",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "Off",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1038,
+      "index": 38,
+      "name": "S/C EQ Type",
+      "value": 5.0,
+      "min": 0.0,
+      "max": 5.0,
+      "quantized": true,
+      "items": [
+        "Low Shelf",
+        "Bell",
+        "High Shelf",
+        "Low pass",
+        "Band pass",
+        "High pass"
+      ],
+      "display": "High pass",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1039,
+      "index": 39,
+      "name": "S/C EQ Freq",
+      "value": 0.3052678406238556,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "200 Hz",
+      "enabled": true,
+      "defaultValue": 0.3052678406238556
+    },
+    {
+      "id": 1040,
+      "index": 40,
+      "name": "S/C EQ Q",
+      "value": 0.40856707096099854,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.71 ",
+      "enabled": true,
+      "defaultValue": 0.40856707096099854
+    },
+    {
+      "id": 1041,
+      "index": 41,
+      "name": "S/C EQ Gain",
+      "value": 0.5,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.0 dB",
+      "enabled": true,
+      "defaultValue": 0.5
+    },
+    {
+      "id": 1042,
+      "index": 42,
+      "name": "S/C On",
+      "value": 0.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": true,
+      "items": [
+        "Off",
+        "On"
+      ],
+      "display": "Off",
+      "enabled": true,
+      "defaultValue": null
+    },
+    {
+      "id": 1043,
+      "index": 43,
+      "name": "S/C Gain",
+      "value": 0.4000000059604645,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "0.00 dB",
+      "enabled": true,
+      "defaultValue": 0.4000000059604645
+    },
+    {
+      "id": 1044,
+      "index": 44,
+      "name": "S/C Mix",
+      "value": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "quantized": false,
+      "items": [],
+      "display": "100 %",
+      "enabled": true,
+      "defaultValue": 1.0
+    }
+  ],
+  "id": 1
+}

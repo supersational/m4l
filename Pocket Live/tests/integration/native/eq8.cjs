@@ -1,0 +1,15 @@
+const {ROOT}=require('../../harness/paths.cjs');
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const c={};vm.createContext(c);for(const n of ['device-ui','parameter-sync','eq8-renderer','eq8-signature','eq8-profile'])vm.runInContext(fs.readFileSync(ROOT+'/web/'+n+'.js','utf8'),c);vm.runInContext('globalThis.profile=EQ8Profile;globalThis.signature=EQ8Signature;globalThis.renderer=EQ8Renderer;',c);
+const d={id:42,className:'Eq8',name:'EQ Eight',sampleRateHz:48000,eq8:{available:true,globalMode:0,editMode:0,selectedBand:1},parameters:JSON.parse(JSON.stringify(c.signature.bindings)).map((p,i)=>({...p,id:100+i,enabled:true,value:p.name.includes('Filter Type')?3:p.name.includes('Frequency')||p.name.includes(' Q ')?0.5:0,display:'0',defaultValue:0}))};
+assert.ok(c.profile.matches(d,'Eq8'));assert.equal(c.profile.matches({...d,eq8:undefined},'Eq8'),false);assert.equal(c.profile.matches(d,'Echo'),false);assert.equal(c.profile.matches({...d,parameters:d.parameters.slice(1)},'Eq8'),false);
+const p=n=>d.parameters.find(p=>p.name===n);p('1 Filter Type A').value=0;assert.equal(c.profile.change(d,'1 Gain A',9).length,0);assert.equal(c.profile.change(d,'1 Q A',9)[0].value,1);p('1 Filter Type A').value=3;assert.equal(c.profile.change(d,'1 Gain A',9)[0].value,9);
+assert.equal(c.profile.view(d).sampleRateHz,48000);d.eq8.globalMode=2;d.eq8.editMode=1;assert.equal(c.profile.view(d).editChannel,'S');
+// Native bridge command: validates all fields before mutation, uses actual IDs,
+// and converts UI bands 1..8 to Live view indices 0..7.
+const writes=[],out=[],props={42:{class_name:'Eq8',global_mode:0,edit_mode:0,oversample:0,name:'EQ Eight'},43:{class_name:'StereoGain'},91:{selected_band:0}};
+function API(){this.id=0;}API.prototype.get=function(k){if(k==='view')return ['id',91];if(k==='parameters')return [];return props[this.id]?.[k]??0;};API.prototype.set=function(k,v){writes.push([this.id,k,v]);props[this.id][k]=v;};
+const bridge={LiveAPI:API,Task:class{cancel(){}},outlet:(...a)=>out.push(a)};vm.createContext(bridge);vm.runInContext(fs.readFileSync(ROOT+'/live.js','utf8'),bridge);vm.runInContext("epoch='test';allowed={42:'device',43:'device'};",bridge);
+function command(request){bridge.command(JSON.stringify({id:'test',request:{epoch:'test',op:'eq8_view',target:42,...request}}));return JSON.parse(out.at(-1)[2]);}
+assert.equal(command({globalMode:2,editMode:1,selectedBand:8}).ok,true);assert.ok(writes.some(x=>x[1]==='selected_band'&&x[2]===7));assert.equal(props[42].global_mode,2);const before=writes.length;assert.equal(command({globalMode:1,selectedBand:9}).ok,false);assert.equal(writes.length,before);assert.equal(command({target:43}).ok,false);assert.equal(command({target:999}).ok,false);assert.equal(command({globalMode:0,editMode:1}).ok,true);assert.equal(props[42].edit_mode,0);
+console.log('EQ Eight integration passed: contract/fallback, effective Gain semantics, channel/sample rate mapping, typed view API, zero-based native bands, invalid/stale target rejection.');

@@ -1,0 +1,31 @@
+{
+  "name": "m4l-live-remote",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.56.1"
+  },
+  "scripts": {
+    "build:web": "python3 tools/package_release.py --web-only",
+    "package": "python3 tools/package_release.py",
+    "build:device": "python3 build.py",
+    "test": "node tools/run-real-tests.mjs",
+    "test:unit": "node tools/run-tests.mjs unit",
+    "test:integration": "node tools/run-tests.mjs integration",
+    "test:list": "node tools/run-tests.mjs --list",
+    "test:cloud": "python3 tests/acceptance/network/relay-presence.py",
+    "test:live": "node tools/run-real-tests.mjs",
+    "test:convergence": "python3 tests/harness/run-convergence.py",
+    "test:offline": "node tools/run-tests.mjs offline",
+    "test:live:legacy": "python3 tests/harness/run-live.py",
+    "test:regressions": "node tools/run-tests.mjs regressions",
+    "test:probes": "node tools/run-real-tests.mjs --probes",
+    "test:network": "node tools/run-real-tests.mjs --network=all",
+    "test:demo": "node tests/harness/real-set.mjs --open-demo"
+  }
+}

@@ -1,0 +1,33 @@
+const {ROOT}=require('../../harness/paths.cjs');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm');
+const context={module:{exports:{}}};vm.createContext(context);vm.runInContext(fs.readFileSync(ROOT+'/web/recording.js','utf8'),context);const {mode,Tracker}=context.module.exports;
+const song=(fields={})=>({epoch:'set-a',playing:true,record:true,countingIn:false,position:8,loopStart:4,loopLength:8,tracks:[],...fields});
+const track=(fields={})=>({id:1,kind:'track',canArm:true,arm:true,implicitArm:false,playingSlotIndex:-1,arrangement:[],clips:[],...fields});
+assert.equal(mode(song(),track()),'arrangement');
+for(const fields of [{playing:false},{record:false},{countingIn:true},{punchIn:true,position:2},{punchOut:true,position:12}])assert.equal(mode(song(fields),track()),null);
+for(const fields of [{arm:false},{kind:'return'},{kind:'master'},{frozen:true},{playingSlotIndex:-2}])assert.equal(mode(song(),track(fields)),null);
+assert.equal(mode(song(),track({arm:false,implicitArm:true})),'arrangement');
+assert.equal(mode(song(),track({arm:false,playingSlotIndex:17,sessionPlaying:true})),'arrangement');
+assert.equal(mode(song({record:false}),track({playingSlotIndex:17,sessionRecording:true})),'session');
+assert.equal(mode(song({record:false}),track({clips:[{recording:true}]})),'session');
+assert.equal(mode(song(),track({playingSlotIndex:undefined})),'arrangement'); // old-host fallback
+assert.equal(mode(song(),track({arm:false,playingSlotIndex:undefined})),null);
+const t=new Tracker();
+t.update(song({position:8,tracks:[track(),track({id:2,arm:false})]}),0);
+t.update(song({position:12,tracks:[track(),track({id:2,arm:false})]}),100);
+assert.deepEqual(JSON.parse(JSON.stringify(t.preview(track()))),{start:8,end:12,observed:true,active:true});assert.equal(t.preview(track({id:2})),null);
+t.update(song({position:12,record:false,tracks:[track()]}),200);assert.equal(t.preview(track()).active,false);
+t.update(song({position:12,record:false,tracks:[track({arrangement:[{start:8,end:12}]})]}),300);assert.equal(t.preview(track()),null);
+t.update(song({epoch:'set-b',position:20,tracks:[track()]}),400);assert.equal(t.preview(track()).start,20);
+t.update(song({epoch:'set-b',position:5,loop:true,loopStart:4,tracks:[track()]}),500);assert.equal(t.preview(track()).start,4);assert.equal(t.preview(track()).end,5);
+t.update(song({epoch:'set-b',record:false,position:5,tracks:[track()]}),600);
+t.update(song({epoch:'set-b',record:false,position:5,tracks:[track()]}),2700);assert.equal(t.preview(track()),null);
+t.update(song({tracks:[track({arrangement:[{recording:true,start:1,end:8}]})]}),2800);assert.equal(t.preview(track({arrangement:[{recording:true,start:1}]})),null);
+t.reset();assert.equal(t.preview(track()),null);
+console.log('Passed: recording vs armed, count-in, punch boundaries, Session capture, implicit arm, old hosts, multi-track progress, epoch, loop wrap, final-clip handoff and disconnect.');
+
+const native={1:{can_be_armed:[1],arm:[1],implicit_arm:[0],is_frozen:[0],playing_slot_index:[17]},117:{clip:['id',501]},501:{is_recording:[1],is_playing:[1]}};
+const bridge={Task:function(){this.cancel=()=>{};},LiveAPI:function(){this.id=0;this.unquotedpath='live_set tracks 0';this.goto=p=>{if(p==='live_set tracks 0 clip_slots 17')this.id=117;};this.get=p=>native[this.id]?.[p]||[0];}};vm.createContext(bridge);vm.runInContext(fs.readFileSync(ROOT+'/live.js','utf8'),bridge);
+bridge.sceneTotal=18;const facts=bridge.recordingFacts(bridge.api(1));assert.equal(facts.sessionRecording,true);assert.equal(facts.playingSlotIndex,17);assert.equal(mode(song({record:false}),track(facts)),'session');
+console.log('Passed: native bridge reads the actively recording Session clip outside the visible scene page.');
