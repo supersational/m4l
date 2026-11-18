@@ -1,0 +1,1 @@
+require('./maxnode/bridge.js');

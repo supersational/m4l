@@ -1,7 +1,7 @@
 """Build the native 169px device; --portable uses adjacent packaged support files."""
 import argparse,json
 from pathlib import Path
-from tools.patch_writer import Patch
+from tools.patch_writer import Patch, PORTABLE_NODE_ENTRY
 
 HERE=Path(__file__).resolve().parent
 parser=argparse.ArgumentParser(description=__doc__)
@@ -17,7 +17,8 @@ def object_path(name):
     value=resource(name)
     return json.dumps(value,ensure_ascii=False) if any(ch.isspace() for ch in value) else value
 p=Patch();inp=p.box('plugin~');out=p.box('plugout~');p.wire(inp,out);p.wire(inp,out,1,1)
-node=p.box('node.script '+object_path('maxnode/bridge.js')+' @autostart 0 @watch 0');live=p.box('js '+object_path('live.js'));ui=p.box('js '+object_path('panel-controls.js'))
+node_entry = PORTABLE_NODE_ENTRY if args.portable else object_path('maxnode/bridge.js')
+node=p.box('node.script '+node_entry+' @autostart 0 @watch 0');live=p.box('js '+object_path('live.js'));ui=p.box('js '+object_path('panel-controls.js'))
 CREAM=[.94,.93,.89,1.];INK=[.10,.17,.18,1.];MUTED=[.43,.49,.47,1.];GREEN=[0.,.47,.39,1.];PALE=[.83,.85,.79,1.]
 def control(kind,rect,name=None,**attrs):
  key=p.box('',kind);p.boxes[-1]['box'].update(presentation=1,presentation_rect=rect,patching_rect=rect,**attrs)
