@@ -1,22 +1,27 @@
-# Max for Live devices
+# Pocket Live
 
-This repo contains the source code for **Pocket Live**, with more Max for Live
-devices to come. Finished builds go in [`devices/`](devices/); editable Pocket
-Live source is in [`Pocket Live/`](Pocket%20Live/).
+Pocket Live is a **Max for Live device** that lets you control your Ableton Live
+Set from a phone, tablet, or computer. Launch clips, mix tracks, and tweak
+devices from a browser on the same Wi-Fi or over the internet.
 
-## Use Pocket Live
+**[Get the latest Pocket Live release](https://github.com/supersational/m4l/releases/latest)** · [Download the v0.1.0 device ZIP](https://github.com/supersational/m4l/releases/download/v0.1.0/Pocket-Live-v0.1.0.zip)
 
-Download the **Pocket Live release ZIP** and extract the entire folder. If
-you cloned this repo, use the [`devices/Pocket Live/`](devices/Pocket%20Live/)
-folder instead. Drag `Pocket Live.amxd` onto an audio track in Ableton Live
-with Max for Live. Keep the supporting files beside it.
+## Install and connect
 
-The package includes the browser controller and is configured to use the
-hosted Pocket Live relay in Cloud mode. You can use the device as shipped.
+1. **Extract the device ZIP** and keep the whole `Pocket Live` folder together.
+2. **Drag `Pocket Live.amxd`** from that folder onto an audio track in Ableton
+   Live with Max for Live.
+3. **Open the controller.** Choose **Local** for the same Wi-Fi or **Cloud**
+   for internet access through the included relay. Scan the QR code or click
+   **Open Controller**.
 
-Choose **Local** to control Live from another browser on the same Wi-Fi, or
-**Cloud** to use the included relay over the internet. Scan the QR code or
-click **Open Controller**. Anyone with the private link can control the set.
+Share the controller link only with people you want to control the Set.
+
+## Source and builds
+
+This repo contains Pocket Live and will host more Max for Live devices.
+Finished builds go in [`devices/`](devices/). Editable Pocket Live source
+is in [`Pocket Live/`](Pocket%20Live/).
 
 ## Host your own Cloud relay
 
