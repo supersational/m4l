@@ -22,12 +22,16 @@ function setupPhoneActions(){
   ['.phone-transport-actions',['#backarrangement','.transport .timing','.controller-header .utility']],
   ['.phone-session-actions',['.controller-footer-actions']]
  ];
- const moves=groups.flatMap(([destination,selectors])=>selectors.map(selector=>{
-  const control=$(selector),marker=document.createComment('desktop placement');
-  control.before(marker);
-  return {control,marker,menu:$(destination)};
- }));
+ let moves;
  function arrange(){
+  if(!moves){
+   if(!phoneLayout.matches)return;
+   moves=groups.flatMap(([destination,selectors])=>selectors.map(selector=>{
+    const control=$(selector),marker=document.createComment('desktop placement');
+    control.before(marker);
+    return {control,marker,menu:$(destination)};
+   }));
+  }
   dismissSetActions();
   for(const {control,marker,menu} of moves){
    if(phoneLayout.matches)menu.append(control);

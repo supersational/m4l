@@ -6,7 +6,7 @@ const frames=[],listeners={},sockets=[],writes=[];
 const element=key=>({dataset:{},hidden:false,textContent:'',title:'',isConnected:true,classList:{toggle(name,on){writes.push([key,name,on]);},add(){},remove(){},contains:()=>false},style:{setProperty(){}},firstElementChild:{style:new Proxy({},{set(t,k,v){writes.push([key,k,v]);t[k]=v;return true;}})},setAttribute(){},querySelector:()=>null,querySelectorAll:()=>[],closest:()=>null});
 const elements=new Map(),get=s=>{if(!elements.has(s))elements.set(s,element(s));return elements.get(s);};
 const document={hidden:false,body:{dataset:{}},activeElement:null,querySelector:get,querySelectorAll:()=>[],addEventListener:(type,fn)=>(listeners[type]??=[]).push(fn)};
-const context={document,console,location:{protocol:'http:',origin:'http://localhost:1234',pathname:'/s/test',hash:'#test'},navigator:{},localStorage:{getItem:()=>null,setItem(){}},matchMedia:()=>({matches:true}),performance,crypto:require('node:crypto').webcrypto,Uint8Array,atob,
+const context={document,console,location:{protocol:'http:',origin:'http://localhost:1234',pathname:'/s/test',hash:'#test'},navigator:{},localStorage:{getItem:()=>null,setItem(){}},matchMedia:query=>({matches:query==='(pointer:coarse)',addEventListener(){}}),performance,crypto:require('node:crypto').webcrypto,Uint8Array,atob,
  requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},cancelAnimationFrame(){},setInterval(){},clearInterval(){},setTimeout:()=>0,clearTimeout(){},addEventListener(){},Event:class{},MouseEvent:class{},
  WebSocket:class{constructor(){this.readyState=1;sockets.push(this);}send(raw){this.sent=JSON.parse(raw);}close(){this.readyState=3;}}};
 context.window=context;vm.createContext(context);
