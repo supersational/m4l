@@ -634,3 +634,106 @@ footer {
   #scenePager button span { display: none; }
   footer .spacer { flex-basis: 0; }
 }
+
+.phone-label,.phone-transport-actions:empty,.phone-session-actions:empty { display: none; }
+.controller-footer-actions { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 450px) {
+  .controller-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand position" "transport transport";
+    gap: 6px 8px;
+    padding-block: 8px;
+  }
+  .transport {
+    max-width: none;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .transport .playback,.transport .tempo-control {
+    flex: 1 0 auto;
+  }
+  .transport .tempo-control { justify-content: flex-end; }
+  .transport .tempo-value { flex: 0 1 auto; }
+  .transport #tempo { width: 52px; }
+  .controller-header .transport button { min-width: 44px; min-height: 44px; }
+  .controller-nav { flex-wrap: nowrap; }
+  .view-tabs button { padding-inline: 4px; min-height: 44px; }
+  .set-actions summary { min-width: 44px; min-height: 44px; }
+  .set-actions-panel {
+    width: min(290px, calc(100vw - 24px));
+    max-height: min(70dvh, 430px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .phone-transport-actions,.phone-session-actions {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 4px;
+  }
+  .set-actions-panel [data-op="stop_all"] { grid-column: 1 / -1; }
+  .phone-transport-actions .utility { grid-area: auto; justify-self: stretch; }
+  .phone-transport-actions .phone-label:not(:first-child) { margin-inline-start: 4px; }
+  .phone-transport-actions { border-bottom: 1px solid #565656; padding-bottom: 4px; }
+  .phone-session-actions { border-top: 1px solid #565656; padding-top: 4px; }
+  .phone-transport-actions .phone-label { display: inline; }
+  .phone-transport-actions .desktop-label { display: none; }
+  .phone-transport-actions :is(.timing,.utility),
+  .phone-session-actions .controller-footer-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+  }
+  .phone-transport-actions button,
+  .phone-session-actions .controller-footer-actions button {
+    min-width: 0;
+    font-size: 13px;
+    padding-inline: 8px;
+  }
+  .phone-transport-actions .utility button[data-op="settings"] { grid-column: 1 / -1; }
+  .phone-transport-actions #backarrangement { order: 0; width: 100%; padding-inline: 8px; }
+  .controller-nav:has(#backarrangement:not([hidden])) .set-actions summary {
+    border-color: #b7844a;
+  }
+  body[data-live-view="mixer"] .controller-footer,
+  body[data-live-view="pinned"] .controller-footer,
+  body[data-live-view="session"] .controller-footer:has([data-op="previous"]:disabled):has([data-op="next"]:disabled) { display: none; }
+  .controller-footer { justify-content: center; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .controller-footer .spacer { display: none; }
+  #scenePager { gap: 14px; }
+  #scenerange { font-size: 12px; }
+  #scenerange:not(:empty)::before { content: "Scenes "; }
+
+  body[data-live-view="session"] #main {
+    scroll-snap-type: x proximity;
+    scroll-padding-inline-start: 136px;
+  }
+  .session:not(.mixeronly) .track[data-track] {
+    width: clamp(168px, calc(100vw - 146px), 320px);
+    scroll-snap-align: start;
+  }
+  .session .scenes { width: 130px; }
+  .scenes .clip { gap: 4px; padding-inline: 4px; }
+  .scenes .clip .name { white-space: nowrap; }
+  .session .track[data-track] .clip { font-size: 13px; }
+  .session.mixeronly .track { width: clamp(154px, calc((100vw - 15px) / 2), 200px); }
+  .controller-workspace > #drawer { padding-inline: 12px; }
+  .drawerhead {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    gap: 5px;
+  }
+  .drawer-label { grid-column: 2; }
+  #drawerDeviceNav { grid-column: 3; }
+  #drawerPin { grid-column: 4; }
+  .drawerhead [data-op="close"] { grid-column: 5; grid-row: 1; }
+  #drawerBack { grid-column: 1 / -1; grid-row: 2; text-align: left; }
+  #drawerBody .compact-params,
+  .pinned-card-body .compact-params { grid-template-columns: minmax(0, 1fr); }
+  .compact-param label { font-size: 13px; }
+  .compact-control input { height: 44px; }
+  #drawerBody > .ut-all { margin: 0 0 8px; }
+}

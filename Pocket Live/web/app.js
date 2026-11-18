@@ -14,6 +14,30 @@ if(room)window.addEventListener('hashchange',()=>location.reload());
 const pinnedViewKey='pocket-live:pinned-view:'+room;
 if(room&&token){try{if(sessionStorage.getItem(pinnedViewKey)==='1')view='pinned';}catch{}}
 const viewScroll=new Map();
+const phoneLayout=typeof matchMedia==='function'?matchMedia('(max-width: 450px)'):null;
+
+// Keep the same controls and their state when moving them into the phone menu.
+function setupPhoneActions(){
+ const groups=[
+  ['.phone-transport-actions',['#backarrangement','.transport .timing','.controller-header .utility']],
+  ['.phone-session-actions',['.controller-footer-actions']]
+ ];
+ const moves=groups.flatMap(([destination,selectors])=>selectors.map(selector=>{
+  const control=$(selector),marker=document.createComment('desktop placement');
+  control.before(marker);
+  return {control,marker,menu:$(destination)};
+ }));
+ function arrange(){
+  dismissSetActions();
+  for(const {control,marker,menu} of moves){
+   if(phoneLayout.matches)menu.append(control);
+   else marker.after(control);
+  }
+  updateDevicePanels();
+ }
+ phoneLayout.addEventListener('change',arrange);
+ arrange();
+}
 function showView(nextView){
  const main=$('#main');
  if(view!==nextView)viewScroll.set(view,[main.scrollLeft,main.scrollTop]);
@@ -28,6 +52,7 @@ function showView(nextView){
  if(view==='pinned')pollPinnedDevices();
 }
 function updateViewButtons(){
+ document.body.dataset.liveView=view;
  $('#scenePager').hidden=view!=='session';
  $('[data-op="go_playhead"]').hidden=view!=='arrangement';
  document.querySelectorAll('[data-view]').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('selected',selected);if(selected)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
@@ -411,7 +436,10 @@ function renderDrawerPower(d,power){
  }
  syncGenericPower(root,power);
 }
-function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)return;$('#drawerTitle').textContent=d.name;const root=$('#drawerBody'),profile=deviceProfile(d),mode=(profile?.spec.id||'generic')+':'+!!activeDrawer.allParameters;renderDrawerPower(d,(!profile||activeDrawer.allParameters)&&genericPower(d));if(root.dataset.deviceMode===mode&&root.dataset.deviceId===String(d.id)){DeviceUI.update(root,d,id=>parameterSync.status(id));return;}if(dragging||root.querySelector('input:focus,select:focus'))return;$('#drawerTitle').textContent=d.name;updateDrawerPin();const scroll=$('#drawer').scrollTop;root.innerHTML=(!profile||activeDrawer.allParameters?`<input id="paramsearch" type="search" placeholder="Find a parameter…" aria-label="Search device parameters" value="${esc(activeDrawer.search||'')}">`:'')+genericDeviceBody(d,activeDrawer.allParameters,activeDrawer.search)+`<div class="section actions"><button data-op="device_add_here"><span aria-hidden="true">＋</span> Add device</button><button class="danger" data-op="device_delete" data-target="${d.id}">Delete device</button></div>`;root.dataset.deviceMode=mode;root.dataset.deviceId=d.id;DeviceUI.update(root,d,id=>parameterSync.status(id));$('#drawer').scrollTop=scroll;}
+function drawerUsesParameters(profile){
+ return activeDrawer?.allParameters??(phoneLayout?.matches&&['auto-filter','eq-eight','echo'].includes(profile?.spec.id));
+}
+function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)return;$('#drawerTitle').textContent=d.name;const root=$('#drawerBody'),profile=deviceProfile(d),all=!!drawerUsesParameters(profile),mode=(profile?.spec.id||'generic')+':'+all;renderDrawerPower(d,(!profile||all)&&genericPower(d));if(root.dataset.deviceMode===mode&&root.dataset.deviceId===String(d.id)){DeviceUI.update(root,d,id=>parameterSync.status(id));return;}if(dragging||root.querySelector('input:focus,select:focus'))return;$('#drawerTitle').textContent=d.name;updateDrawerPin();const scroll=$('#drawer').scrollTop;root.innerHTML=(!profile||all?`<input id="paramsearch" type="search" placeholder="Find a parameter…" aria-label="Search device parameters" value="${esc(activeDrawer.search||'')}">`:'')+genericDeviceBody(d,all,activeDrawer.search)+`<div class="section actions"><button data-op="device_add_here"><span aria-hidden="true">＋</span> Add device</button><button class="danger" data-op="device_delete" data-target="${d.id}">Delete device</button></div>`;root.dataset.deviceMode=mode;root.dataset.deviceId=d.id;DeviceUI.update(root,d,id=>parameterSync.status(id));$('#drawer').scrollTop=scroll;}
 
 function filterParameters(q){document.querySelectorAll('#drawerBody .parameter[data-name]').forEach(p=>p.hidden=!p.dataset.name.includes(q.toLowerCase()));}
 function trackDrawer(id){const t=trackBy(id);if(!t)return;openDrawer(t.name,`${field('Name',`<input data-edit="track_name" data-target="${id}" value="${esc(t.name)}">`)}${field('Color',`<input type="color" data-edit="track_color" data-target="${id}" value="${color(t.color)}">`)}${t.monitor!==null?field('Monitor',`<select data-edit="monitor" data-target="${id}">${['In','Auto','Off'].map((s,i)=>`<option value="${i}" ${i===t.monitor?'selected':''}>${s}</option>`).join('')}</select>`):''}<div class="actions">${t.canArm?`<button data-op="arm" data-target="${id}">${t.arm?'Disarm':'Arm for recording'}</button>`:''}<button data-op="track_stop" data-target="${id}">Stop clips</button><button data-op="routing" data-target="${id}">Routing</button></div><div class="section"><h3>Devices</h3>${deviceButtons(t.devices)||'<p class="hint">No devices on this track.</p>'}<button class="adddevice" data-op="device_browser" data-target="${id}">＋ Add device</button></div>${t.kind!=='master'?`<div class="section actions">${t.kind==='track'?`<button data-op="duplicate_track" data-target="${id}" ${t.isBridge?'disabled':''}>Duplicate track</button>`:''}<button class="danger" data-op="delete_track" data-target="${id}" ${t.isBridge?'disabled':''}>Delete track</button></div>`:''}`,'track',id);}
@@ -549,7 +577,7 @@ function resetInteractions(){
  rejectPending('Live connection or set changed');
 }
 function updateWriteAvailability(){
- for(const control of document.querySelectorAll('.transport button,#tempo,#backarrangement,.set-actions-panel button,[data-op="settings"]'))control.disabled=!hostOnline;
+ for(const control of document.querySelectorAll('.transport button,#tempo,#backarrangement,.set-actions-panel button:not([data-op="share"]):not([data-op="refresh"]),[data-op="settings"]'))control.disabled=!hostOnline;
  $('#undo').disabled=!hostOnline||!state?.canUndo;
  $('#redo').disabled=!hostOnline||!state?.canRedo;
  for(const el of document.querySelectorAll('input[data-param],select[data-param],[data-knob-input],[data-op="reset_parameter"],[data-op="utility_switch"]')){
@@ -612,7 +640,8 @@ function dismissSetActions(restoreFocus=false){
 }
 document.addEventListener('click',e=>{
  const actions=e.target.closest('.set-actions');
- if(!actions||e.target.closest('.set-actions-panel button'))dismissSetActions(Boolean(actions));
+ const button=e.target.closest('.set-actions-panel button');
+ if(!actions||button&&button.dataset.op!=='tap')dismissSetActions(Boolean(actions));
 });
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&$('.set-actions[open]')?.open){e.stopImmediatePropagation();dismissSetActions(true);}
@@ -639,7 +668,7 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-op]
  }
  if(op==='pin_toggle'){togglePin(el.dataset.pinKind,id);return;}
  if(op==='device_help'){toast(el.dataset.help);return;}
- if(op==='device_parameter_view'){const card=el.closest('.pinned-card');if(card){const device=Number(card.dataset.device);pinnedAll.has(device)?pinnedAll.delete(device):pinnedAll.add(device);renderPinned();card.querySelector('.pinned-view-toggle')?.focus({preventScroll:true});}else if(activeDrawer?.kind==='device'){activeDrawer.allParameters=!activeDrawer.allParameters;renderDevice();}return;}
+ if(op==='device_parameter_view'){const card=el.closest('.pinned-card');if(card){const device=Number(card.dataset.device);pinnedAll.has(device)?pinnedAll.delete(device):pinnedAll.add(device);renderPinned();card.querySelector('.pinned-view-toggle')?.focus({preventScroll:true});}else if(activeDrawer?.kind==='device'){activeDrawer.allParameters=!drawerUsesParameters(deviceDetails&&deviceProfile(deviceDetails));renderDevice();}return;}
  if(op==='utility_switch'){const p=parameterBy(id);if(!p||!p.enabled||!DeviceGestures.canWrite(id))return;const value=el.getAttribute('aria-pressed')==='true'?p.min:p.max;p.value=value;el.setAttribute('aria-pressed',String(value===p.max));el.classList.toggle('selected',value===p.max);parameterSync.preview(id,value);writeParameter(id,value);return;}
  if(op==='back_arrangement'){act('song_set',{property:'back_to_arranger',value:false});return;}if(op==='reset_parameter'){writeParameter(id,Number(el.dataset.value));return;}if(op==='device_browser'){deviceBrowser(id,el.closest('#drawer')?drawerParent('track','track_devices'):null);return;}
  if(op==='device_previous'||op==='device_next'){const target=neighbouringDevices()?.[op==='device_previous'?'previous':'next'];if(target)openDeviceDrawer(target.id,activeDrawer.back);return;}
@@ -769,7 +798,7 @@ function genericDeviceBody(d,all=false,search=''){
   return `<div class="parameter compact-param" data-name="${esc(p.name.toLowerCase())}" ${query&&!p.name.toLowerCase().includes(query)?'hidden':''}><label><span>${esc(p.name)}</span>${choices?'':`<output data-value="${p.id}">${esc(value)}</output>`}</label><div class="compact-control">${parameterControl(p)}${automation}${reset}</div></div>`;
  }).join('');
  const back=profile?`<button class="ut-all" data-op="device_parameter_view" data-device="${d.id}">Device view</button>`:'';
- return `<div class="compact-params">${rows||'<p class="hint">No additional parameters exposed by Live.</p>'}</div>${back}`;
+ return `${back}<div class="compact-params">${rows||'<p class="hint">No additional parameters exposed by Live.</p>'}</div>`;
 }
 function pinnedTrackBody(t){return `<div class="pinned-track-controls"><div class="toggles">${t.kind!=='master'?`<button class="activator ${!t.mute?'active':''}" data-op="mute" data-target="${t.id}">On</button><button class="solo ${t.solo?'active':''}" data-op="solo" data-target="${t.id}">Solo</button>`:''}${t.canArm?`<button class="arm ${t.arm?'active':''}" data-op="arm" data-target="${t.id}">● Arm</button>`:''}</div>${[t.volume,t.pan,...t.sends].map((p,i)=>`<label class="pinned-track-param"><span>${i===0?'Volume':i===1?'Pan':'Send '+String.fromCharCode(63+i)}<output data-read="${p.id}">${esc(DeviceUI.formatDisplay(p.display))}</output></span>${parameterControl(p)}</label>`).join('')}<div class="meter pinned-meter" data-meter="${t.id}"><i></i></div><button data-op="track" data-target="${t.id}">Track settings</button></div>`;}
 function renderPinned(){
@@ -855,6 +884,7 @@ document.addEventListener('pointerdown',e=>{
 document.addEventListener('pointermove',moveFilterGesture);
 function finishFilterGesture(e){const targets=e?[filterGestures.get(e.pointerId)]:[...filterGestures.values()];for(const g of targets){if(!g)continue;filterGestures.delete(g.pointer);for(const id of g.changed)DeviceGestures.flush(id,g.pointer);DeviceGestures.end(g.pointer);}}
 document.addEventListener('pointerup',finishFilterGesture);document.addEventListener('pointercancel',finishFilterGesture);document.addEventListener('lostpointercapture',finishFilterGesture);window.addEventListener('blur',()=>finishFilterGesture());window.addEventListener('resize',updateDevicePanels);
+if(phoneLayout&&room&&token)setupPhoneActions();
 
 // Device renderers receive transport/state through this adapter, never a second socket.
 DeviceUI.configure({canWrite:()=>hostOnline,tempo:()=>state?.tempo||120,sampleRateHz:()=>state?.sampleRateHz,pending:id=>parameterSync.status(id),refresh:updateDevicePanels,error:e=>toast(e.message),

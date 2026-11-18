@@ -28,15 +28,15 @@
       <button type="button" data-op="tempo_up" aria-label="Increase tempo by 1 BPM" disabled>+</button>
     </div>
     <div class="transport-group timing">
-      <button data-op="tap" title="Tap tempo">Tap</button>
-      <button data-op="metro" id="metro" aria-label="Metronome" title="Metronome">◉</button>
+      <button data-op="tap" title="Tap tempo"><span class="desktop-label">Tap</span><span class="phone-label">Tap tempo</span></button>
+      <button data-op="metro" id="metro" aria-label="Metronome" title="Metronome"><span aria-hidden="true">◉</span><span class="phone-label">Metronome</span></button>
     </div>
   </div>
   <span id="position" title="Playback position in bars and beats">1.1</span>
   <div class="utility" role="group" aria-label="Set controls">
-    <button data-op="undo" id="undo" aria-label="Undo" title="Undo">↶</button>
-    <button data-op="redo" id="redo" aria-label="Redo" title="Redo">↷</button>
-    <button data-op="settings" aria-label="Set controls" title="Set controls">☷</button>
+    <button data-op="undo" id="undo" aria-label="Undo" title="Undo"><span aria-hidden="true">↶</span><span class="phone-label">Undo</span></button>
+    <button data-op="redo" id="redo" aria-label="Redo" title="Redo"><span aria-hidden="true">↷</span><span class="phone-label">Redo</span></button>
+    <button data-op="settings" aria-label="Set controls" title="Set controls"><span aria-hidden="true">☷</span><span class="phone-label">Set controls</span></button>
   </div>
 </header>
 <nav class="controller-nav" aria-label="Live views">
@@ -51,9 +51,11 @@
   <details class="set-actions">
     <summary aria-label="Set actions" title="Set actions"><span aria-hidden="true">···</span></summary>
     <div class="set-actions-panel">
+      <div class="phone-transport-actions"></div>
       <button data-op="add">Add track</button>
       <button data-op="scene_create">Add scene</button>
       <button data-op="stop_all">Stop clips</button>
+      <div class="phone-session-actions"></div>
     </div>
   </details>
 </nav>
@@ -74,9 +76,9 @@
     <div id="drawerBody"></div>
   </aside>
 </div>
-<footer>
+<footer class="controller-footer">
   <div id="scenePager" role="group" aria-label="Scene pages"><button data-op="previous" disabled aria-label="Previous scenes">↑<span> Scenes</span></button><span id="scenerange"></span><button data-op="next" disabled aria-label="Next scenes">↓<span> Scenes</span></button></div>
   <button data-op="go_playhead" disabled hidden>Go to playhead</button>
-  <span class="spacer"></span><span id="latency"></span><button data-op="refresh">↻ Refresh</button><button data-op="share">Copy link</button>
+  <span class="spacer"></span><span id="latency"></span><div class="controller-footer-actions"><button data-op="refresh">↻ Refresh</button><button data-op="share">Copy link</button></div>
 </footer>
 <div id="toast" role="status"></div><script src="/device-gestures.js"></script><script src="/device-ui.js"></script><script src="/parameter-sync.js"></script><script src="/utility-profile.js"></script><script src="/recording.js"></script><script src="/waveform.js"></script><script src="/filter-model.js"></script><script src="/filter-layout.js"></script><script src="/auto-filter-profile.js"></script><script src="/svg-device-controls.js"></script><script src="/echo-renderer.js"></script><script src="/echo-signature.js"></script><script src="/echo-profile.js"></script><script src="/eq8-renderer.js"></script><script src="/eq8-signature.js"></script><script src="/eq8-profile.js"></script><script src="/eq8-controls.js"></script><script src="/pins.js"></script><script src="/app.js"></script></body></html>
