@@ -1,5 +1,7 @@
 # Pocket Live
 
+*Tested in Ableton Live 12.4.*
+
 Pocket Live is a **Max for Live device** that lets you control your Ableton Live
 Set from a phone, tablet, or computer. Launch clips, mix tracks, and tweak
 devices from a browser on the same Wi-Fi or over the internet.
