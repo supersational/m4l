@@ -7,11 +7,6 @@ import json
 import struct
 
 
-# Max resolves a bare script name beside the AMXD. A relative path with a
-# directory component can fail when Live loads the device from its browser.
-PORTABLE_NODE_ENTRY = "pocket-live-start.js"
-
-
 class Patch:
     def __init__(self):
         self.boxes = []

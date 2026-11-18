@@ -1,7 +1,7 @@
 """Build the native 169px device; --portable uses adjacent packaged support files."""
 import argparse,json
 from pathlib import Path
-from tools.patch_writer import Patch, PORTABLE_NODE_ENTRY
+from tools.patch_writer import Patch
 
 HERE=Path(__file__).resolve().parent
 parser=argparse.ArgumentParser(description=__doc__)
@@ -17,8 +17,20 @@ def object_path(name):
     value=resource(name)
     return json.dumps(value,ensure_ascii=False) if any(ch.isspace() for ch in value) else value
 p=Patch();inp=p.box('plugin~');out=p.box('plugout~');p.wire(inp,out);p.wire(inp,out,1,1)
-node_entry = PORTABLE_NODE_ENTRY if args.portable else object_path('maxnode/bridge.js')
-node=p.box('node.script '+node_entry+' @autostart 0 @watch 0');live=p.box('js '+object_path('live.js'));ui=p.box('js '+object_path('panel-controls.js'))
+def codebox(kind, source, outputs, **attributes):
+    key = p.box('', kind)
+    box = p.boxes[-1]['box']
+    box.pop('text')
+    box.update(code=(HERE/'tools'/source).read_text(), numinlets=1, numoutlets=outputs,
+               outlettype=['']*outputs, saved_object_attributes=attributes)
+    return key
+
+if args.portable:
+    node = codebox('node.codebox', 'node_startup.js', 2, autostart=0, watch=0)
+else:
+    node = p.box('node.script '+object_path('maxnode/bridge.js')+' @autostart 0 @watch 0')
+startup = codebox('v8.codebox', 'max_startup.js', 1, parameter_enable=0)
+live=p.box('js '+object_path('live.js'));ui=p.box('js '+object_path('panel-controls.js'))
 CREAM=[.94,.93,.89,1.];INK=[.10,.17,.18,1.];MUTED=[.43,.49,.47,1.];GREEN=[0.,.47,.39,1.];PALE=[.83,.85,.79,1.]
 def control(kind,rect,name=None,**attrs):
  key=p.box('',kind);p.boxes[-1]['box'].update(presentation=1,presentation_rect=rect,patching_rect=rect,**attrs)
@@ -46,12 +58,26 @@ button('OPEN CONTROLLER',[152.,114.,165.,24.],'open','open',10,GREEN,CREAM)
 button('AUTO PORT',[328.,114.,110.,24.],'auto_port','localport 0',9)
 label('Chooses a free port for you',[450.,119.,174.,14.],8,'auto_port_help',textcolor=MUTED)
 notice=label('',[152.,139.,472.,13.],8,'notice',textcolor=MUTED)
-label('Anyone with this private link can control this set.',[152.,154.,472.,12.],7,'footer',textcolor=MUTED)
+label('Anyone with this private link can control this set.',[152.,154.,280.,12.],7,'footer',textcolor=MUTED)
+label('Pocket '+(HERE/'VERSION').read_text().strip(),[430.,154.,94.,12.],8,textcolor=MUTED,textjustification=2)
+label('Live …',[526.,154.,98.,12.],8,'live_version',textcolor=MUTED,textjustification=2)
 ready=p.box('live.thisdevice');defer=p.box('deferlow');init=p.box('initialize','message');p.wire(ready,defer);p.wire(defer,init);p.wire(init,live)
 # Read the actual audio sample rate for native device response renderers.
 dsp=p.box('dspstate~');sr=p.box('prepend sample_rate');p.wire(ready,dsp);p.wire(dsp,sr,1);p.wire(sr,live)
-lb=p.box('loadbang');start=p.box('script start','message');p.wire(lb,start);p.wire(start,node)
-route=p.box('route command refresh status url qr browse controllerslabel notice panelmode panelscope connection presence');p.wire(node,route)
+p.wire(init,startup)
+start = p.box('prepend script start') if args.portable else p.box('script start','message')
+p.wire(startup,start);p.wire(start,node)
+route=p.box('route command refresh status url qr browse controllerslabel notice panelmode panelscope connection presence startup_error');p.wire(node,route)
+bridge_ready = p.box('bridge_ready', 'message')
+p.wire(route,bridge_ready,2);p.wire(bridge_ready,startup)
+startup_error = p.box('prepend startup_error')
+p.wire(route,startup_error,12);p.wire(startup_error,startup)
+lifecycle = p.box('route start loadend terminated')
+p.wire(node,lifecycle,1)
+for event_index in range(3):
+    errors = p.box('route error')
+    failure = p.box('startup_error Node for Max failed. Open Max Window for details.', 'message')
+    p.wire(lifecycle,errors,event_index);p.wire(errors,failure);p.wire(failure,startup)
 pre=p.box('prepend presence');p.wire(route,pre,11);p.wire(pre,live)
 pre=p.box('prepend command');p.wire(route,pre);p.wire(pre,live)
 refresh=p.box('refresh','message');p.wire(route,refresh,1);p.wire(refresh,live)

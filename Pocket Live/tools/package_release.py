@@ -9,7 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
-from patch_writer import PORTABLE_NODE_ENTRY
 
 SOURCE = Path(__file__).resolve().parents[1]
 ESBUILD = SOURCE / "node_modules/.bin/esbuild"
@@ -22,7 +21,6 @@ RELEASE_FILES = {
     *NATIVE_SOURCES,
     *(f"web-dist/{name}" for name in WEB_FILES),
     "Pocket Live.amxd", "README.md", "config.json",
-    PORTABLE_NODE_ENTRY, "package.json",
     "maxnode/package.json", "maxnode/bridge.js",
 }
 SCRIPT = re.compile(r'<script src="/([^"<>]+)"></script>')
@@ -112,8 +110,6 @@ def stage_release(stage, worker):
         config["worker"] = worker
     (stage / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     (stage / "README.md").write_text(INSTALL_README)
-    (stage / PORTABLE_NODE_ENTRY).write_text("require('./maxnode/bridge.js');\n")
-    (stage / "package.json").write_text('{"type":"commonjs"}\n')
     (stage / "maxnode/package.json").write_text('{"type":"commonjs"}\n')
     esbuild(SOURCE / "maxnode/bridge.js", "--bundle", "--minify", "--platform=node",
             "--target=node18", "--format=cjs", "--external:max-api",
