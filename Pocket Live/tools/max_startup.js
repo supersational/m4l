@@ -23,7 +23,7 @@ function initialize() {
     watchdog.schedule(8000);
     const patchFile = this.patcher.filepath;
     if (!patchFile) {
-        startup_error("Load Pocket Live.amxd from the extracted Pocket Live folder.");
+        startup_error("Max did not provide the device’s file path.", "Load Pocket Live.amxd from the extracted Pocket Live folder.");
         return;
     }
     outlet(0, patchFile);
@@ -35,16 +35,21 @@ function bridge_ready() {
     watchdog.cancel();
 }
 
-function startup_error(...parts) {
+function startup_error(cause, nextStep) {
     if (failed) return;
     failed = true;
+    label("headline", ready ? "Pocket Live stopped" : "Pocket Live couldn’t start");
+    label("status", ready ? "Bridge stopped" : "Startup error");
     ready = false;
     watchdog.cancel();
-    label("status", "Bridge failed to start");
-    label("notice", parts.join(" "));
+    label("subtitle", String(cause));
+    label("notice", nextStep || "Open Max Window for the full error.");
     label("count", "");
+    label("url", "");
+    const qr = this.patcher.getnamed("qr");
+    if (qr) qr.message("qr", "");
 }
 
 const watchdog = new Task(() => {
-    if (!ready) startup_error("No response from Node for Max. Open Max Window for details.");
+    if (!ready) startup_error("Node for Max did not respond within 8 seconds.");
 }, this);

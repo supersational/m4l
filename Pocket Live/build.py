@@ -74,9 +74,13 @@ startup_error = p.box('prepend startup_error')
 p.wire(route,startup_error,12);p.wire(startup_error,startup)
 lifecycle = p.box('route start loadend terminated')
 p.wire(node,lifecycle,1)
-for event_index in range(3):
+for event_index, cause in enumerate((
+    'Max could not launch the Node for Max process.',
+    'Node for Max could not load the bridge script.',
+    'The Node for Max process exited unexpectedly.',
+)):
     errors = p.box('route error')
-    failure = p.box('startup_error Node for Max failed. Open Max Window for details.', 'message')
+    failure = p.box('startup_error '+json.dumps(cause), 'message')
     p.wire(lifecycle,errors,event_index);p.wire(errors,failure);p.wire(failure,startup)
 pre=p.box('prepend presence');p.wire(route,pre,11);p.wire(pre,live)
 pre=p.box('prepend command');p.wire(route,pre);p.wire(pre,live)
