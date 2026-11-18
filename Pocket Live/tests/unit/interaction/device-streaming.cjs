@@ -42,3 +42,13 @@ const beforeClear=sent.length;g.clear();advance(1000);
 assert.equal(sent.length,beforeClear,'disconnect cancellation discards pending final intent');
 assert.equal(g.count(),0);
 console.log('Independent release preserves other streams; lifecycle cancellation never commits stale intent.');
+
+g.begin(40,'drawer-control',[40]);g.begin(41,'mixer-control',[41]);
+g.stream(40,.2,write,40);g.stream(40,.9,write,40);
+g.stream(41,.3,write,41);g.stream(41,.7,write,41);
+g.finish();
+assert.equal(g.count(),0,'navigation releases all touch ownership before replacing the view');
+assert.deepEqual(sent.filter(p=>p.id===40).map(p=>p.value),[.2,.9]);
+assert.deepEqual(sent.filter(p=>p.id===41).map(p=>p.value),[.3,.7]);
+const finishedCount=sent.length;advance(1000);
+assert.equal(sent.length,finishedCount,'navigation sends the final value once per control');

@@ -86,9 +86,9 @@ body{touch-action:pan-x pan-y}
 .drawer-device-nav{display:flex;gap:4px;flex:none}.drawer-device-nav[hidden]{display:none}.drawerhead .drawer-device-nav button{min-width:36px;padding:6px;font-size:17px}
 
 /* Wide device faces need room for their controls at playable sizes. */
-.pinned-wide :is(.af-panel,.eq8-panel,.echo-panel){max-width:960px;margin-inline:auto}
+.pinned-wide :is(.af-panel,.eq8-panel,.echo-panel){max-width:690px;margin-inline:auto}
 @media(min-width:700px){.pinned-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pinned-wide{grid-column:span 2}}
-@media(min-width:1440px){.pinned-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:1120px){.pinned-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .pinned-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .pinned-toolbar .pinned-title{margin:0}
 .pinned-toolbar button{min-height:38px}
@@ -113,7 +113,7 @@ body{touch-action:pan-x pan-y}
 .compact-power span{width:15px;height:15px;border-radius:50%;border:1px solid #171819;background:#777}
 .compact-power[aria-pressed=true] span{background:var(--orange)}
 .compact-power:disabled{opacity:.5}
-.compact-params{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,138px),1fr));gap:6px}
+.compact-params{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,176px),1fr));gap:6px}
 .compact-param{min-width:0;padding:5px 6px;border:1px solid #484d4f;border-radius:4px;background:#353839}
 .compact-param label{margin:0 0 2px;gap:4px;align-items:baseline}
 .compact-param label span{min-width:0;overflow-wrap:anywhere}
@@ -297,7 +297,7 @@ body[data-transport=local] .controller-nav{background:#37332e}
 .set-actions-panel button{text-align:left;border-color:transparent;background:transparent}
 .set-actions-panel button:hover{background:var(--chrome-hover)}
 
-@media(max-width:759px){
+@media(max-width:819px){
  .controller-header{
   grid-template-columns:minmax(0,1fr) auto auto;
   grid-template-areas:"brand position utility" "transport transport transport";
@@ -340,7 +340,7 @@ body[data-transport=local] .controller-nav{background:#37332e}
 }
 
 body[data-page="controller"] > .setup-page,
-body:not([data-page="controller"]) > :is(.controller-header, .controller-nav, #offline, #main, footer, #drawer, #toast) {
+body:not([data-page="controller"]) > :is(.controller-header, .controller-nav, #offline, .controller-workspace, footer, #toast) {
   display: none;
 }
 
@@ -407,4 +407,230 @@ body:not([data-page="controller"]) > :is(.controller-header, .controller-nav, #o
 .setup-download:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 4px;
+}
+
+.controller-workspace {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  isolation: isolate;
+}
+
+.controller-workspace > main {
+  min-width: 0;
+}
+
+.controller-workspace > #drawer {
+  position: relative;
+  inset: auto;
+  flex: none;
+  width: min(48%, 390px);
+  border-left: 1px solid #515151;
+  border-radius: 0;
+  box-shadow: none;
+  overscroll-behavior: contain;
+}
+
+.controller-workspace > #drawer:is([data-kind="device"], [data-kind="notes"]) {
+  width: min(65%, 690px);
+}
+
+.drawerhead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.drawer-label {
+  flex: 1 1 95px;
+  min-width: 0;
+}
+.drawerhead #drawerPin {
+  margin-left: 0;
+}
+#drawerContext {
+  margin: 3px 0 0;
+  color: #c0c0c0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#drawerBack {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.drawerhead:has(#drawerBack:not([hidden])) .drawer-label {
+  flex-basis: 140px;
+}
+.device-chain,.device-chain > div {
+  display: grid;
+  gap: 4px;
+}
+.device-chain-title {
+  margin-block: 10px;
+}
+
+@media (max-width: 790px) {
+  .controller-workspace > #drawer {
+    position: absolute;
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 100%;
+    border: 1px solid #555;
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -6px 24px #0008;
+  }
+  .controller-workspace > #drawer:is([data-kind="device"], [data-kind="notes"]) {
+    width: 100%;
+  }
+}
+
+.trackhead .track-name {
+  flex: 1;
+  min-width: 0;
+}
+.trackhead .track-options {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-shortcuts {
+  display: flex;
+  padding: 2px 4px;
+  background: #343434;
+}
+.track-shortcuts button {
+  flex: 1;
+  min-height: 32px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.session:not(.mixeronly) .mixer {
+  margin-top: 0;
+}
+.session:not(.mixeronly) .track.master {
+  position: relative;
+  right: auto;
+  box-shadow: none;
+}
+.session .scenes {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  box-shadow: 4px 0 12px #0005;
+}
+.scenes .mixer button {
+  min-width: 0;
+  padding-inline: 4px;
+}
+#scenePager:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#scenerange {
+  white-space: nowrap;
+}
+footer {
+  flex: none;
+  flex-wrap: wrap;
+}
+#toast:has(button) {
+  display: none;
+  align-items: center;
+  gap: 10px;
+}
+#toast.visible:has(button) {
+  display: flex;
+}
+#toast button {
+  white-space: nowrap;
+}
+.set-actions {
+  z-index: 12;
+}
+
+.timeline {
+  min-width: 100%;
+  width: calc(var(--timeline-width) + var(--lane-width));
+}
+.timeline .lanehead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--lane-width);
+}
+.timeline .timelineruler {
+  margin-left: var(--lane-width);
+}
+.timeline .region {
+  background: repeating-linear-gradient(to right, #4b4b4b 0 1px, transparent 1px var(--bar-width)), #363636;
+}
+
+.af-control .ut-knob { gap: 0; }
+.af-control .ut-knob > label { flex-shrink: 0; }
+.af-control .ut-knob .ut-dial { flex-shrink: 1; min-height: 0; }
+.af-control select {
+  appearance: none;
+  font-size: 9px !important;
+  padding-right: 9px;
+  background: #252525 linear-gradient(45deg, transparent 50%, #bbb 50%) right 4px center / 3px 3px no-repeat;
+}
+
+@media (max-width: 420px) {
+  .transport {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .transport-group,.transport .timing {
+    flex: none;
+  }
+}
+
+@media (any-pointer: coarse) {
+  .controller-header .transport button,
+  .controller-header .utility button,
+  .set-actions summary,
+  .trackhead button,.trackhead .pin-button,
+  .clipmenu,
+  .drawerhead button,.drawerhead .drawer-device-nav button,
+  .pin-button,.pinned-card-head .pin-button,
+  .compact-power {
+    min-width: 44px;
+  }
+  #tempo { min-height: 42px; }
+  .fader { width: 44px; }
+  .trackhead {
+    height: 48px;
+    padding-inline: 4px;
+  }
+  .trackhead button,.trackhead .pin-button,
+  .track-shortcuts button,
+  .cliprow,.clip,.clipmenu,
+  .trackstop,.mixer .toggles button,.scenes .mixer button,
+  .devices button,.device-chain button,#drawer .actions button,#drawerBody > button,
+  .drawerhead button,footer button,.pinned-toolbar button,
+  .pinned-card-head .pin-button,.pinned-track-controls button,#toast button {
+    min-height: 44px;
+  }
+  .devices {
+    height: 110px;
+  }
+  .arrclip {
+    height: 44px;
+    top: 6px;
+  }
+}
+
+@media (max-width: 450px) {
+  #scenePager button { min-width: 44px; }
+  #scenePager button span { display: none; }
+  footer .spacer { flex-basis: 0; }
 }

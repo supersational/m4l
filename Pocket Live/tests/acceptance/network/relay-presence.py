@@ -8,6 +8,8 @@ ARTIFACTS.mkdir(exist_ok=True)
 import json
 import subprocess
 from pathlib import Path
+from uuid import uuid4
+from websockets.exceptions import ConnectionClosedError
 from websockets.sync.client import connect
 
 HERE = ROOT
@@ -64,6 +66,16 @@ def main():
         phones.pop().close()
         receive(new_host, 'presence', controllers=0)
         report['last_disconnect_returns_zero'] = True
+        # An unknown room behaves like a room deleted after expiration. A
+        # rejected HTTP upgrade would hide the reason from a browser.
+        expired = base.replace('https:', 'wss:') + f'/api/ws/{uuid4()}?role=control'
+        with connect(expired, close_timeout=1) as controller:
+            try:
+                controller.recv(timeout=5)
+                raise AssertionError('Expired room sent data to the controller')
+            except ConnectionClosedError as exc:
+                assert exc.rcvd is not None and exc.rcvd.code == 1008
+        report['expired_link_returns_browser_close_code'] = True
         report['passed'] = True
     finally:
         for client in reversed(clients):

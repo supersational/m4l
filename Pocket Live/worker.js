@@ -84,10 +84,17 @@ export class LiveRoom extends DurableObject {
       await this.ctx.storage.setAlarm(meta.expires);
       return new Response('Created');
     }
-    const meta = await this.ctx.storage.get('meta');
-    if (!meta || meta.expires < Date.now()) return new Response('Expired', { status: 410 });
     const role = url.searchParams.get('role');
     if (!['host', 'control'].includes(role)) return new Response('Invalid role', { status: 400 });
+    const meta = await this.ctx.storage.get('meta');
+    if (!meta || meta.expires < Date.now()) {
+      if (role === 'host') return new Response('Expired', { status: 410 });
+      // Browser WebSockets cannot read the status of a rejected HTTP upgrade.
+      const [client, server] = Object.values(new WebSocketPair());
+      server.accept();
+      server.close(1008, 'Session expired');
+      return new Response(null, { status: 101, webSocket: client });
+    }
     if (this.ctx.getWebSockets().length >= 16) return new Response('Session full', { status: 429 });
     const pair = new WebSocketPair();
     pair[1].serializeAttachment({

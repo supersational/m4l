@@ -5,8 +5,8 @@
     <h1 id="setup-title">Connect to Ableton Live</h1>
     <p>Pocket / Live needs a connection to your Live Set before you can control it from this browser.</p>
     <ol>
-      <li>Download and unzip Pocket Live. Drag <strong>Pocket Live.amxd</strong> onto an audio track in Ableton Live.</li>
-      <li>In the device, scan its QR code or click <strong>Open Controller</strong>.</li>
+      <li>On the computer running Ableton Live, download and unzip Pocket Live. Drag <strong>Pocket Live.amxd</strong> onto an audio track.</li>
+      <li>Scan the device’s QR code with your iPad or phone. To connect on the same computer, click <strong>Open Controller</strong> in the device.</li>
     </ol>
     <a class="setup-download" href="https://github.com/supersational/m4l/releases/latest">Download on GitHub</a>
   </section>
@@ -46,7 +46,7 @@
     <button data-view="arrangement">Arrangement</button>
     <button data-view="pinned">Pinned <span id="pinCount"></span></button>
   </div>
-  <button id="backarrangement" data-op="back_arrangement" hidden>↩ Back to Arrangement</button>
+  <button id="backarrangement" data-op="back_arrangement" hidden>Resume Arrangement Playback</button>
   <div class="setname" id="setname">Waiting for Live</div>
   <details class="set-actions">
     <summary aria-label="Set actions" title="Set actions"><span aria-hidden="true">···</span></summary>
@@ -57,6 +57,26 @@
     </div>
   </details>
 </nav>
-<div id="offline" class="offline">Open the Pocket / Live device in Ableton to connect. This page reconnects automatically.</div><main id="main"><section class="welcome"><h1>Connecting to your Live Set</h1><p>Keep Pocket / Live open in Ableton while the controller connects.</p></section></main>
-<footer><button data-op="previous">↑ Scenes</button><span id="scenerange"></span><button data-op="next">↓ Scenes</button><span class="spacer"></span><span id="latency"></span><button data-op="refresh">↻ Refresh</button><button data-op="share">Copy link</button></footer>
-<aside id="drawer" hidden><div class="drawerhead"><div id="drawerPower"></div><h2 id="drawerTitle"></h2><div id="drawerDeviceNav" class="drawer-device-nav" role="group" aria-label="Devices on this track" hidden><button data-op="device_previous" aria-label="Previous device">‹</button><button data-op="device_next" aria-label="Next device">›</button></div><button id="drawerPin" class="pin-button" hidden></button><button data-op="close" aria-label="Close panel">✕</button></div><div id="drawerBody"></div></aside><div id="toast" role="status"></div><script src="/device-gestures.js"></script><script src="/device-ui.js"></script><script src="/parameter-sync.js"></script><script src="/utility-profile.js"></script><script src="/recording.js"></script><script src="/waveform.js"></script><script src="/filter-model.js"></script><script src="/filter-layout.js"></script><script src="/auto-filter-profile.js"></script><script src="/svg-device-controls.js"></script><script src="/echo-renderer.js"></script><script src="/echo-signature.js"></script><script src="/echo-profile.js"></script><script src="/eq8-renderer.js"></script><script src="/eq8-signature.js"></script><script src="/eq8-profile.js"></script><script src="/eq8-controls.js"></script><script src="/pins.js"></script><script src="/app.js"></script></body></html>
+<div id="offline" class="offline" role="status"></div><div class="controller-workspace">
+  <main id="main"><section class="welcome"><h1>Waiting for your Live Set</h1></section></main>
+  <aside id="drawer" aria-labelledby="drawerTitle" hidden>
+    <div class="drawerhead">
+      <div id="drawerPower"></div>
+      <div class="drawer-label"><h2 id="drawerTitle"></h2><p id="drawerContext" hidden></p></div>
+      <div id="drawerDeviceNav" class="drawer-device-nav" role="group" aria-label="Devices on this track" hidden>
+        <button data-op="device_previous" aria-label="Previous device">‹</button>
+        <button data-op="device_next" aria-label="Next device">›</button>
+      </div>
+      <button id="drawerPin" class="pin-button" hidden></button>
+      <button id="drawerBack" data-op="drawer_back" hidden></button>
+      <button data-op="close" aria-label="Close panel">✕</button>
+    </div>
+    <div id="drawerBody"></div>
+  </aside>
+</div>
+<footer>
+  <div id="scenePager" role="group" aria-label="Scene pages"><button data-op="previous" disabled aria-label="Previous scenes">↑<span> Scenes</span></button><span id="scenerange"></span><button data-op="next" disabled aria-label="Next scenes">↓<span> Scenes</span></button></div>
+  <button data-op="go_playhead" disabled hidden>Go to playhead</button>
+  <span class="spacer"></span><span id="latency"></span><button data-op="refresh">↻ Refresh</button><button data-op="share">Copy link</button>
+</footer>
+<div id="toast" role="status"></div><script src="/device-gestures.js"></script><script src="/device-ui.js"></script><script src="/parameter-sync.js"></script><script src="/utility-profile.js"></script><script src="/recording.js"></script><script src="/waveform.js"></script><script src="/filter-model.js"></script><script src="/filter-layout.js"></script><script src="/auto-filter-profile.js"></script><script src="/svg-device-controls.js"></script><script src="/echo-renderer.js"></script><script src="/echo-signature.js"></script><script src="/echo-profile.js"></script><script src="/eq8-renderer.js"></script><script src="/eq8-signature.js"></script><script src="/eq8-profile.js"></script><script src="/eq8-controls.js"></script><script src="/pins.js"></script><script src="/app.js"></script></body></html>

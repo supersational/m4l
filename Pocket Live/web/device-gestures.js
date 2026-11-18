@@ -19,6 +19,7 @@ const DeviceGestures=(()=>{
   pointers.delete(pointer);notify();
  }
  function clear(){for(const e of streams.values())clearTimeout(e.timer);streams.clear();for(const cancel of cancelHandlers)cancel();pointers.clear();claims.clear();notify();}
+ function finish(){for(const pointer of pointers.keys())end(pointer);clear();}
  function owned(id,pointer){return !claims.has(Number(id))||claims.get(Number(id))===pointer;}
  function canWrite(id,pointer){return available()&&(id===undefined||owned(id,pointer));}
  // Leading + bounded trailing updates: a continuous drag must reach Live while
@@ -76,5 +77,5 @@ const DeviceGestures=(()=>{
   },options);
   cancelHandlers.add(()=>contacts.clear());window.addEventListener('blur',()=>contacts.clear());
  }
- return {scalar,moveScalar,installTouchGuard,begin,end,cancel,clear,stream,flush,canWrite,onCancel:fn=>cancelHandlers.add(fn),configure:(fn,allowed=()=>true)=>{changed=fn;available=allowed;notify();},busy:()=>pointers.size>0,count:()=>pointers.size,owned};
+ return {scalar,moveScalar,installTouchGuard,begin,end,cancel,clear,finish,stream,flush,canWrite,onCancel:fn=>cancelHandlers.add(fn),configure:(fn,allowed=()=>true)=>{changed=fn;available=allowed;notify();},busy:()=>pointers.size>0,count:()=>pointers.size,owned};
 })();

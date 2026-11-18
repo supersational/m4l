@@ -6,18 +6,80 @@ let connectionTransport=location.protocol==='http:'?'local':'cloud';document.bod
 function commandID(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=null,ws=null,view='session',retry=0,pending=new Map(),activeDrawer=null,dragging=false,lastMessage=0,reconnectTimer,drawerVersion=0,deviceDetails=null,devicePoll=0,deviceBusy=false,hostOnline=false,snapshotReady=false;
+let linkExpired=false;
 const room=/^\/s\/([^/]+)\/?$/.exec(location.pathname)?.[1],token=location.hash.slice(1);
 if(room&&token)document.body.dataset.page='controller';
 if(room)window.addEventListener('hashchange',()=>location.reload());
 // Pin data stays in localStorage; just the open page is remembered per tab.
 const pinnedViewKey='pocket-live:pinned-view:'+room;
 if(room&&token){try{if(sessionStorage.getItem(pinnedViewKey)==='1')view='pinned';}catch{}}
-function updateViewButtons(){document.querySelectorAll('[data-view]').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('selected',selected);if(selected)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
+const viewScroll=new Map();
+function showView(nextView){
+ const main=$('#main');
+ if(view!==nextView)viewScroll.set(view,[main.scrollLeft,main.scrollTop]);
+ closeDrawer();
+ editingPins=false;
+ view=nextView;
+ try{if(view==='pinned')sessionStorage.setItem(pinnedViewKey,'1');else sessionStorage.removeItem(pinnedViewKey);}catch{}
+ updateViewButtons();
+ render();
+ [main.scrollLeft,main.scrollTop]=viewScroll.get(view)||[0,0];
+ reportView();
+ if(view==='pinned')pollPinnedDevices();
+}
+function updateViewButtons(){
+ $('#scenePager').hidden=view!=='session';
+ $('[data-op="go_playhead"]').hidden=view!=='arrangement';
+ document.querySelectorAll('[data-view]').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('selected',selected);if(selected)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
 updateViewButtons();
 const color=n=>'#'+(Number.isFinite(Number(n))?Number(n):7833753).toString(16).padStart(6,'0').slice(-6),db=v=>v<=0?'−∞ dB':(20*Math.log10(v)).toFixed(1)+' dB';
 function foreground(n){const h=color(n),v=parseInt(h.slice(1),16),l=((v>>16)*299+((v>>8)&255)*587+(v&255)*114)/1000;return l>145?'#151515':'#f5f5f5';}
-function toast(s){$('#toast').textContent=s;$('#toast').classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
-function status(online,label){const disconnected=hostOnline&&!online;hostOnline=online;if(disconnected)resetInteractions();if(!online){recordingTracker.reset();document.querySelectorAll('.recording-preview').forEach(e=>e.remove());document.querySelectorAll('[data-recording-status]').forEach(e=>{e.textContent='';e.hidden=true;});}hostOnline=online;if(state&&view==='pinned')renderPinned();$('#connection').textContent=label||(online?(connectionTransport==='local'?'Local connected':'Cloud connected'):'Live offline');$('#connection').classList.toggle('online',online);$('#offline').classList.toggle('visible',!online);$('#offline').textContent=label==='Syncing…'?'Connected to Live. Reading your set…':'Open the Pocket Live device in Ableton to connect. This page reconnects automatically.';updateWriteAvailability();}
+function hideToast(){$('#toast').classList.remove('visible');clearTimeout(toast.timer);}
+function toast(message,action=null){
+ const notice=$('#toast');
+ notice.textContent=message;
+ if(action){
+  const button=document.createElement('button');
+  button.type='button';
+  button.dataset.op=action.op;
+  button.textContent=action.label;
+  notice.append(button);
+ }
+ notice.classList.add('visible');
+ clearTimeout(toast.timer);
+ toast.timer=setTimeout(hideToast,action?6500:3500);
+}
+function status(online,phase='offline'){
+ const disconnected=hostOnline&&!online;
+ hostOnline=online;
+ if(disconnected)resetInteractions();
+ if(!online){
+  recordingTracker.reset();
+  document.querySelectorAll('.recording-preview').forEach(e=>e.remove());
+  document.querySelectorAll('[data-recording-status]').forEach(e=>{e.textContent='';e.hidden=true;});
+ }
+ const [label,message]={
+  connecting:['Connecting…','Keep Pocket / Live open in Ableton while this controller connects.'],
+  syncing:['Syncing…','Live connected. Loading the current set…'],
+  offline:['Live offline','Open Pocket / Live in Ableton. This controller will reconnect automatically.'],
+  reconnecting:['Reconnecting…',retry>=2?
+   'Still trying to reconnect. If you reopened Live, open a fresh link from Pocket / Live in Ableton.':
+   'Connection interrupted. Controls will be available when Live reconnects.'],
+  expired:['Link expired or invalid','Open a fresh link from Pocket / Live in Ableton.']
+ }[phase];
+ const connection=$('#connection'),banner=$('#offline');
+ connection.textContent=online?(connectionTransport==='local'?'Local connected':'Cloud connected'):label;
+ connection.classList.toggle('online',online);
+ banner.classList.toggle('visible',!online);
+ const notice=online?'':message;
+ if(banner.textContent!==notice)banner.textContent=notice;
+ if(!state){
+  const heading=$('#main .welcome h1');
+  if(heading)heading.textContent=phase==='expired'?label:'Waiting for your Live Set';
+ }
+ if(state&&view==='pinned')renderPinned();
+ updateWriteAvailability();
+}
 // Requests belong to one socket and are never buffered or replayed. A lost ACK
 // means unknown outcome: only a new native snapshot can establish current truth.
 function rejectPending(message){
@@ -37,8 +99,8 @@ function send(op,args={}){
 }
 function act(op,args){return send(op,args).catch(e=>{toast(e.message);return false;});}
 function connect(){
- if(!room||!token||ws&&ws.readyState<2)return;
- clearTimeout(reconnectTimer);snapshotReady=false;resetInteractions();status(false,'Connecting…');
+ if(!room||!token||linkExpired||ws&&ws.readyState<2)return;
+ clearTimeout(reconnectTimer);snapshotReady=false;resetInteractions();status(false,retry?'reconnecting':'connecting');
  const socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/ws/'+room+'?role=control');
  ws=socket;lastMessage=Date.now();
  // Every callback checks its owner. Late close/error/message events from a
@@ -53,11 +115,11 @@ function connect(){
    if(['local','cloud'].includes(m.transport)){connectionTransport=m.transport;document.body.dataset.transport=connectionTransport;}
    // Host availability is not readiness. A replaced host needs a fresh state
    // even when it reconnects within the same browser WebSocket.
-   snapshotReady=false;resetInteractions();status(false,m.online?'Syncing…':'Live offline');
+   snapshotReady=false;resetInteractions();status(false,m.online?'syncing':'offline');
   }
   if(m.type==='state'){
    if(!m.state||typeof m.state!=='object'||!m.state.epoch||!Array.isArray(m.state.tracks)||!Array.isArray(m.state.scenes))return;
-   if(state&&state.epoch!==m.state.epoch){ClipWaveform.clear();deviceModels.clear();pinnedAll.clear();editingPins=false;resetInteractions();deviceDetails=null;if(activeDrawer){drawerVersion++;activeDrawer=null;$('#drawer').hidden=true;}}
+   if(state&&state.epoch!==m.state.epoch){viewScroll.clear();ClipWaveform.clear();deviceModels.clear();pinnedAll.clear();editingPins=false;resetInteractions();deviceDetails=null;if(activeDrawer){drawerVersion++;activeDrawer=null;$('#drawer').hidden=true;}}
    const previous=state;state=m.state;snapshotReady=true;retry=0;applyScenePage(previous);pruneDeviceModels(previous);pins.use(room+':'+state.epoch);
    for(const t of state.tracks||[])parameterSync.reconcile({parameters:[t.volume,t.pan,...t.sends]});
    applyHolds();
@@ -72,8 +134,12 @@ function connect(){
  };
  socket.onclose=e=>{
   if(ws!==socket)return;
-  snapshotReady=false;status(false,e.code===1008?'Link expired or invalid':'Reconnecting…');rejectPending('Disconnected; command outcome may be unknown');
-  if(e.code!==1008){clearTimeout(reconnectTimer);reconnectTimer=setTimeout(connect,Math.min(15000,1000*2**Math.min(retry++,4)));}
+  snapshotReady=false;
+  linkExpired=e.code===1008;
+  status(false,linkExpired?'expired':'reconnecting');
+  rejectPending('Disconnected; command outcome may be unknown');
+  clearTimeout(reconnectTimer);
+  if(!linkExpired)reconnectTimer=setTimeout(connect,Math.min(15000,1000*2**Math.min(retry++,4)));
  };
  socket.onerror=()=>{if(ws===socket)socket.close();};
 }
@@ -128,15 +194,27 @@ async function loadScenePage(){
  finally{if(sceneRead===read){sceneRead=null;if(read.offset!==sceneOffset&&sceneOffset)loadScenePage();}}
 }
 function deviceButtons(devs,child=false){return devs.map(d=>`<button class="device ${d.on?'':'off'} ${child?'child':''}" data-op="device" data-target="${d.id}"><i class="on"></i>${esc(d.name)}</button>${d.chains.map(c=>deviceButtons(c.devices,true)).join('')}`).join('');}
-function strip(t){return `<div class="track ${t.kind} ${t.pending?'pending':''}" style="--trackcolor:${color(t.color)};--headink:${foreground(t.color)}" data-track="${t.id}"><div class="trackhead" data-op="track" data-target="${t.id}"><span>${esc(t.name)}</span><span class="recording-status" data-recording-status="${t.id}" hidden></span>${pinButton('track',t.id,t.name)}<button aria-label="Track controls" data-op="track" data-target="${t.id}">⋯</button></div><div class="clips">${t.pending&&!t.clips.length?state.scenes.map(()=>'<div class="cliprow placeholder"></div>').join(''):''}${t.clips.map(c=>`<div class="cliprow"><button class="clip ${c.clipId?'loaded':'empty'} ${c.playing?'playing':''} ${c.recording?'recording':''} ${c.triggered?'triggered':''} ${c.playing&&t.firedSlotIndex===-2?'stopping':''} ${t.arm?'armed':''}" style="--clipcolor:${color(c.color)};--clipink:${foreground(c.color)}" data-op="clip_fire" data-target="${c.id}" title="${c.clipId?'Launch clip':t.arm?'Record into empty slot':'Empty clip slot'}"><span class="symbol">${c.clipId?'▶':t.arm?'◉':'■'}</span><span class="name">${esc(c.name||(t.arm?'Record':''))}</span></button><button class="clipmenu" data-op="clip" data-track="${t.id}" data-target="${c.id}" aria-label="Clip options">⋯</button></div>`).join('')}</div>${t.kind==='track'?`<button class="trackstop ${t.firedSlotIndex===-2?'stopping':''}" data-op="track_stop" data-target="${t.id}">■ Stop track</button>`:''}<div class="mixer"><div class="toggles">${t.kind!=='master'?`<button class="activator ${!t.mute?'active':''}" data-op="mute" data-target="${t.id}" title="Track activator" aria-label="${esc(t.name)} activator">${t.index+1}</button><button class="solo ${t.solo?'active':''}" data-op="solo" data-target="${t.id}" aria-label="${esc(t.name)} solo">S</button>`:''}${t.canArm?`<button class="arm ${t.arm?'active':''}" data-op="arm" data-target="${t.id}" aria-label="${esc(t.name)} arm">●</button>`:''}</div><div class="faderrow"><input class="fader" type="range" min="${t.volume.min}" max="${t.volume.max}" step="0.001" value="${t.volume.value}" data-param="${t.volume.id}" aria-label="${esc(t.name)} volume"><div class="meter" data-meter="${t.id}"><i></i></div></div><div class="volread" data-read="${t.volume.id}">${esc(DeviceUI.formatDisplay(t.volume.display)||db(t.volume.value))}</div><div class="panrow"><span>Pan</span><input type="range" min="${t.pan.min}" max="${t.pan.max}" step=".01" value="${t.pan.value}" data-param="${t.pan.id}" aria-label="${esc(t.name)} pan"></div><div class="sends">${t.sends.map((s,i)=>`<label class="sendrow">${String.fromCharCode(65+i)}<input type="range" min="${s.min}" max="${s.max}" step=".01" value="${s.value}" data-param="${s.id}" aria-label="Send ${String.fromCharCode(65+i)}"></label>`).join('')}</div></div><div class="devices">${deviceButtons(t.devices)}<button class="adddevice" data-op="device_browser" data-target="${t.id}">＋ Device</button></div></div>`;}
-function renderHead(){if(!state)return;$('#pinCount').textContent=pins.items.length?`(${pins.items.length})`:'';updateDrawerPin();updateDrawerDeviceNav();recordingTracker.update(state);$('#backarrangement').hidden=!state.backToArrangement;$('#setname').textContent=state.name;$('#play').classList.toggle('active',state.playing);$('#record').classList.toggle('active',state.record);$('#metro').classList.toggle('active',state.metronome);if(!tempoEdit)$('#tempo').value=state.tempo;$('#undo').disabled=!state.canUndo;$('#redo').disabled=!state.canRedo;document.querySelector('[data-op=previous]').disabled=state.sceneOffset===0;document.querySelector('[data-op=next]').disabled=state.sceneOffset+8>=state.sceneCount;$('#scenerange').textContent=`${state.sceneOffset+1}–${Math.min(state.sceneOffset+8,state.sceneCount)} / ${state.sceneCount}`;}
+function strip(t){return `<div class="track ${t.kind} ${t.pending?'pending':''}" style="--trackcolor:${color(t.color)};--headink:${foreground(t.color)}" data-track="${t.id}"><div class="trackhead" data-op="track" data-target="${t.id}"><span class="track-name"><button class="track-options" data-op="track" data-target="${t.id}" aria-label="Track controls for ${esc(t.name)}">${esc(t.name)}</button></span><span class="recording-status" data-recording-status="${t.id}" hidden></span>${pinButton('track',t.id,t.name)}</div><div class="track-shortcuts"><button data-op="track_devices" data-target="${t.id}" aria-label="Devices on ${esc(t.name)}">Devices${t.devices.length?` (${t.devices.length})`:''}</button></div><div class="clips">${t.pending&&!t.clips.length?state.scenes.map(()=>'<div class="cliprow placeholder"></div>').join(''):''}${t.clips.map(c=>`<div class="cliprow"><button class="clip ${c.clipId?'loaded':'empty'} ${c.playing?'playing':''} ${c.recording?'recording':''} ${c.triggered?'triggered':''} ${c.playing&&t.firedSlotIndex===-2?'stopping':''} ${t.arm?'armed':''}" style="--clipcolor:${color(c.color)};--clipink:${foreground(c.color)}" data-op="clip_fire" data-target="${c.id}" title="${c.clipId?'Launch clip':t.arm?'Record into empty slot':'Empty clip slot'}"><span class="symbol">${c.clipId?'▶':t.arm?'◉':'■'}</span><span class="name">${esc(c.name||(t.arm?'Record':''))}</span></button><button class="clipmenu" data-op="clip" data-track="${t.id}" data-target="${c.id}" aria-label="Clip options">⋯</button></div>`).join('')}</div>${t.kind==='track'?`<button class="trackstop ${t.firedSlotIndex===-2?'stopping':''}" data-op="track_stop" data-target="${t.id}">■ Stop track</button>`:''}<div class="mixer"><div class="toggles">${t.kind!=='master'?`<button class="activator ${!t.mute?'active':''}" data-op="mute" data-target="${t.id}" title="Track activator" aria-label="${esc(t.name)} activator">${t.index+1}</button><button class="solo ${t.solo?'active':''}" data-op="solo" data-target="${t.id}" aria-label="${esc(t.name)} solo">S</button>`:''}${t.canArm?`<button class="arm ${t.arm?'active':''}" data-op="arm" data-target="${t.id}" aria-label="${esc(t.name)} arm">●</button>`:''}</div><div class="faderrow"><input class="fader" type="range" min="${t.volume.min}" max="${t.volume.max}" step="0.001" value="${t.volume.value}" data-param="${t.volume.id}" aria-label="${esc(t.name)} volume"><div class="meter" data-meter="${t.id}"><i></i></div></div><div class="volread" data-read="${t.volume.id}">${esc(DeviceUI.formatDisplay(t.volume.display)||db(t.volume.value))}</div><div class="panrow"><span>Pan</span><input type="range" min="${t.pan.min}" max="${t.pan.max}" step=".01" value="${t.pan.value}" data-param="${t.pan.id}" aria-label="${esc(t.name)} pan"></div><div class="sends">${t.sends.map((s,i)=>`<label class="sendrow">${String.fromCharCode(65+i)}<input type="range" min="${s.min}" max="${s.max}" step=".01" value="${s.value}" data-param="${s.id}" aria-label="Send ${String.fromCharCode(65+i)}"></label>`).join('')}</div></div><div class="devices">${deviceButtons(t.devices)}<button class="adddevice" data-op="device_browser" data-target="${t.id}">＋ Device</button></div></div>`;}
+function renderHead(){if(!state)return;updateTrackDevices();$('#pinCount').textContent=pins.items.length?`(${pins.items.length})`:'';updateDrawerPin();updateDrawerDeviceNav();recordingTracker.update(state);$('#backarrangement').hidden=!state.backToArrangement;$('#setname').textContent=state.name;$('#play').classList.toggle('active',state.playing);$('#record').classList.toggle('active',state.record);$('#metro').classList.toggle('active',state.metronome);if(!tempoEdit)$('#tempo').value=state.tempo;$('#undo').disabled=!hostOnline||!state.canUndo;$('#redo').disabled=!hostOnline||!state.canRedo;$('[data-op="go_playhead"]').disabled=false;document.querySelector('[data-op=previous]').disabled=state.sceneOffset===0;document.querySelector('[data-op=next]').disabled=state.sceneOffset+8>=state.sceneCount;$('#scenerange').textContent=`${state.sceneOffset+1}–${Math.min(state.sceneOffset+8,state.sceneCount)} / ${state.sceneCount}`;}
 // Song-level controls only; render() also rebuilds every strip.
 function render(){if(!state)return;forgetStrips();renderHead();
- if(!dragging){const main=$('#main'),x=main.scrollLeft,y=main.scrollTop;if(view==='arrangement')renderArrangement();else if(view==='pinned')renderPinned();else main.innerHTML=`<div class="session ${view==='mixer'?'mixeronly':''}">${state.tracks.map(strip).join('')}<div class="track scenes"><div class="trackhead">Scenes</div><div class="clips">${state.scenes.map(s=>`<div class="cliprow"><button class="clip ${s.triggered?'triggered':''}" data-op="scene_fire" data-target="${s.id}">▶ ${esc(s.name||s.index+1)}</button><button class="clipmenu" data-op="scene" data-target="${s.id}">⋯</button></div>`).join('')}</div><div class="mixer"><button data-op="stop_all">■ Stop all</button><button data-op="add">＋ Track</button></div></div></div>`;main.scrollLeft=x;main.scrollTop=y;}
+ if(!dragging){const main=$('#main'),x=main.scrollLeft,y=main.scrollTop;if(view==='arrangement')renderArrangement();else if(view==='pinned')renderPinned();else main.innerHTML=`<div class="session ${view==='mixer'?'mixeronly':''}"><div class="track scenes"><div class="trackhead">Scenes</div><div class="track-shortcuts scene-shortcut"><button data-op="scene_create">＋ Scene</button></div><div class="clips">${state.scenes.map(s=>`<div class="cliprow"><button class="clip ${s.triggered?'triggered':''}" data-op="scene_fire" data-target="${s.id}"><span aria-hidden="true">▶</span><span class="name">${esc(s.name||s.index+1)}</span></button><button class="clipmenu" data-op="scene" data-target="${s.id}" aria-label="Scene options">⋯</button></div>`).join('')}</div><div class="mixer"><button data-op="stop_all">■ Stop all</button><button data-op="add">＋ Track</button></div></div>${state.tracks.map(strip).join('')}</div>`;main.scrollLeft=x;main.scrollTop=y;}
  updateRecordingUI();reportView();
  syncClipDrawer();
  if(activeDrawer?.kind==='device'){if(state.device?.id===activeDrawer.id){deviceDetails=rememberDevice(state.device);renderDevice();}else if(!deviceBusy&&Date.now()-devicePoll>(deviceViews()?DEVICE_SAFETY_MS:1500))loadDevice(activeDrawer.id,drawerVersion);}}
-function renderArrangement(){const tracks=state.tracks.filter(t=>t.kind==='track');let end=Math.max(64,state.loopStart+state.loopLength,state.position+16,...tracks.flatMap(t=>t.arrangement.map(c=>c.end)));const w=Math.max(800,end*12);$('#main').innerHTML=`<div class="timeline" style="width:${w+160}px"><div class="timelineruler" style="width:${w}px">${Array.from({length:Math.ceil(end/4)},(_,i)=>`<span class="rulerbeat" style="left:${i*48}px">${i+1}</span>`).join('')}</div>${tracks.map(t=>`<div class="lane" data-track="${t.id}"><div class="lanehead" style="border-left:4px solid ${color(t.color)}" data-op="track" data-target="${t.id}"><span>${esc(t.name)}</span><span class="recording-status" data-recording-status="${t.id}" hidden></span></div><div class="region">${t.arrangement.map(c=>`<button class="arrclip ${c.recording?'is-recording':''}" data-start="${c.start}" style="left:${c.start*12}px;width:${Math.max(25,((c.recording?Math.max(c.end,state.position):c.end)-c.start)*12)}px;background:${color(c.color)};color:${foreground(c.color)}" data-op="arrclip" data-target="${c.id}" data-track="${t.id}"><span class="arrclip-name">${esc(c.name)}</span>${c.waveformKey?'<canvas class="clip-waveform" aria-hidden="true"></canvas>':''}</button>`).join('')}<div class="playhead" style="left:${state.position*12}px"></div></div></div>`).join('')}</div>`;drawWaveforms();}
+function renderArrangement(){const tracks=state.tracks.filter(t=>t.kind==='track');let end=Math.max(64,state.loopStart+state.loopLength,state.position+16,...tracks.flatMap(t=>t.arrangement.map(c=>c.end)));const main=$('#main'),beatUnit=4/(state.signature?.[1]||4),barWidth=(state.signature?.[0]||4)*beatUnit*12;
+ const laneWidth=Math.max(96,Math.min(160,innerWidth*.18));
+ const bars=Math.ceil(Math.max(800,end*12,main.clientWidth-laneWidth)/barWidth),width=bars*barWidth;
+ main.innerHTML=`<div class="timeline" style="--timeline-width:${width}px;--bar-width:${barWidth}px;--lane-width:${laneWidth}px"><div class="timelineruler">${Array.from({length:bars},(_,i)=>`<span class="rulerbeat" style="left:${i*barWidth}px">${i+1}</span>`).join('')}</div>${tracks.map(t=>`<div class="lane" data-track="${t.id}"><div class="lanehead" style="border-left:4px solid ${color(t.color)}" data-op="track" data-target="${t.id}"><span>${esc(t.name)}</span><span class="recording-status" data-recording-status="${t.id}" hidden></span></div><div class="region">${t.arrangement.map(c=>`<button class="arrclip ${c.recording?'is-recording':''}" data-start="${c.start}" style="left:${c.start*12}px;width:${Math.max(25,((c.recording?Math.max(c.end,state.position):c.end)-c.start)*12)}px;background:${color(c.color)};color:${foreground(c.color)}" data-op="arrclip" data-target="${c.id}" data-track="${t.id}"><span class="arrclip-name">${esc(c.name)}</span>${c.waveformKey?'<canvas class="clip-waveform" aria-hidden="true"></canvas>':''}</button>`).join('')}<div class="playhead" style="left:${state.position*12}px"></div></div></div>`).join('')}</div>`;drawWaveforms();}
+if(typeof ResizeObserver==='function'){
+ let arrangementWidth=0;
+ new ResizeObserver(([entry])=>{
+  const width=entry.contentRect.width;
+  if(width===arrangementWidth)return;
+  arrangementWidth=width;
+  if(view==='arrangement'&&state)renderArrangement();
+ }).observe($('#main'));
+}
 function drawWaveforms(){if(!state||view!=='arrangement')return;for(const t of state.tracks)for(const c of t.arrangement||[]){const canvas=document.querySelector(`[data-op="arrclip"][data-target="${c.id}"] canvas`);if(canvas)ClipWaveform.draw(canvas,c,state.tempo);}}
 // Meters change state at once; their levels, the position and the playhead are drawn in the next frame.
 function meters(m){if(state){if(m.transport&&m.transport.epoch!==state.epoch)return;Object.assign(state,m.transport||{});state.position=m.position;for(const info of m.tracks||[]){const track=state.tracks.find(t=>t.id===info.id);if(track)for(const key of ['arm','canArm','implicitArm','frozen','playingSlotIndex','sessionRecording','sessionPlaying'])if(key in info)track[key]=info[key];}recordingTracker.update(state);}for(const t of m.tracks||[])if('level' in t||'left' in t||'right' in t)dirty.meters.set(t.id,Math.max(t.level||0,t.left||0,t.right||0));dirty.beat=m.position||0;dirty.recording=true;scheduleFrame();}
@@ -171,7 +249,16 @@ function updateRecordingUI(){
   preview.title=take.observed?'Recording progress since this controller observed the take. The finished clip replaces this preview; no audio waveform is streamed.':'Recording in progress';
  }
 }
-function openDrawer(title,html,kind,id){drawerVersion++;activeDrawer={kind,id};$('#drawerPower').innerHTML='';reportView();$('#drawerTitle').textContent=title;$('#drawerBody').innerHTML=html;delete $('#drawerBody').dataset.deviceMode;delete $('#drawerBody').dataset.deviceId;$('#drawer').hidden=false;updateDrawerPin();updateDrawerDeviceNav();}
+function openDrawer(title,html,kind,id,back=null){
+ if(DeviceGestures.busy())DeviceGestures.finish();
+ drawerVersion++;
+ activeDrawer={kind,id,title,back};
+ const drawer=$('#drawer'),backButton=$('#drawerBack'),context=$('#drawerContext');
+ drawer.dataset.kind=kind;
+ backButton.hidden=!back;
+ backButton.textContent=back?'‹ Back to '+back.title:'';
+ context.textContent=kind==='device'?(deviceLocation(id)?.track.name||''):'';
+ context.hidden=!context.textContent;$('#drawerPower').innerHTML='';reportView();$('#drawerTitle').textContent=title;$('#drawerBody').innerHTML=html;delete $('#drawerBody').dataset.deviceMode;delete $('#drawerBody').dataset.deviceId;drawer.hidden=false;drawer.scrollTop=0;updateDrawerPin();updateDrawerDeviceNav();}
 // A tapped toggle shows at once and holds until Live answers, so an older snapshot still in
 // flight cannot flick it back. Live's own change arrives as a patch (see applyPatch).
 const holds=new Map();
@@ -302,11 +389,11 @@ function updateDrawerDeviceNav(){
   button.title=target?.name||`No ${direction} device on this track`;
  }
 }
-function openDeviceDrawer(id){
+function openDeviceDrawer(id,back=null,presentation=null){
  const location=deviceLocation(id);if(!location)return;
  deviceDetails=currentDevice(id);
- openDrawer(location.device.name,'<p class="hint">Reading parameters from Live…</p>','device',id);
- $('#drawer').scrollTop=0;
+ openDrawer(location.device.name,'<p class="hint">Reading parameters from Live…</p>','device',id,back);
+ if(presentation){activeDrawer.allParameters=presentation.allParameters;activeDrawer.search=presentation.search;}
  if(deviceDetails)renderDevice();
  loadDevice(id,drawerVersion);
 }
@@ -329,7 +416,7 @@ function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)ret
 function filterParameters(q){document.querySelectorAll('#drawerBody .parameter[data-name]').forEach(p=>p.hidden=!p.dataset.name.includes(q.toLowerCase()));}
 function trackDrawer(id){const t=trackBy(id);if(!t)return;openDrawer(t.name,`${field('Name',`<input data-edit="track_name" data-target="${id}" value="${esc(t.name)}">`)}${field('Color',`<input type="color" data-edit="track_color" data-target="${id}" value="${color(t.color)}">`)}${t.monitor!==null?field('Monitor',`<select data-edit="monitor" data-target="${id}">${['In','Auto','Off'].map((s,i)=>`<option value="${i}" ${i===t.monitor?'selected':''}>${s}</option>`).join('')}</select>`):''}<div class="actions">${t.canArm?`<button data-op="arm" data-target="${id}">${t.arm?'Disarm':'Arm for recording'}</button>`:''}<button data-op="track_stop" data-target="${id}">Stop clips</button><button data-op="routing" data-target="${id}">Routing</button></div><div class="section"><h3>Devices</h3>${deviceButtons(t.devices)||'<p class="hint">No devices on this track.</p>'}<button class="adddevice" data-op="device_browser" data-target="${id}">＋ Add device</button></div>${t.kind!=='master'?`<div class="section actions">${t.kind==='track'?`<button data-op="duplicate_track" data-target="${id}" ${t.isBridge?'disabled':''}>Duplicate track</button>`:''}<button class="danger" data-op="delete_track" data-target="${id}" ${t.isBridge?'disabled':''}>Delete track</button></div>`:''}`,'track',id);}
 function clipDrawer(track,id){const t=trackBy(track),c=t.clips.find(c=>c.id===Number(id));if(!c)return;clipPanel(c,t);}
-function clipPanel(c,t){openDrawer(c.name||`Empty slot · ${t.name}`,`<div class="actions"><button data-op="clip_fire" data-target="${c.id}">${c.clipId?'▶ Launch':t.arm?'● Record clip':'Launch'}</button><button data-op="clip_stop" data-target="${c.id}">■ Stop</button></div>${c.clipId?`${field('Name',`<input value="${esc(c.name)}" data-edit="clip_name" data-target="${c.clipId}">`)}${field('Loop',`<input type="checkbox" ${c.looping?'checked':''} data-edit="clip_loop" data-target="${c.clipId}">`)}${field('Muted',`<input type="checkbox" ${c.muted?'checked':''} data-edit="clip_mute" data-target="${c.clipId}">`)}${field('Loop start',`<input type="number" min="0" step=".25" value="${c.loopStart}" data-edit="clip_field" data-property="loop_start" data-target="${c.clipId}">`)}${field('Loop end',`<input type="number" min=".25" step=".25" value="${c.loopEnd}" data-edit="clip_field" data-property="loop_end" data-target="${c.clipId}">`)}${field('Launch mode',`<select data-edit="clip_field" data-property="launch_mode" data-target="${c.clipId}">${['Trigger','Gate','Toggle','Repeat'].map((v,i)=>`<option value="${i}" ${i===c.launchMode?'selected':''}>${v}</option>`).join('')}</select>`)}<p class="hint">Length: ${c.length} beats</p>${c.midi?`<button data-op="notes" data-target="${c.clipId}" data-length="${c.length}">♪ Edit MIDI notes</button>`:''}<div class="actions"><button data-op="clip_double" data-target="${c.clipId}">Double loop</button><button data-op="clip_quantize" data-target="${c.clipId}">Quantize 1/16</button><button data-op="clip_duplicate" data-track="${t.id}" data-index="${c.index}">Duplicate to next slot</button><button data-op="clip_to_arrangement" data-track="${t.id}" data-clip="${c.clipId}">Copy to Arrangement</button><button class="danger" data-op="clip_delete" data-target="${c.id}">Delete clip</button></div>`:t.midi?`<p class="hint">Create an empty MIDI clip, or arm the track and press Record.</p>${field('Length in beats','<input id="cliplength" type="number" min=".25" max="1024" value="4">')}<button data-op="clip_create" data-target="${c.id}">Create MIDI clip</button>`:'<p class="hint">Arm this audio track, select its input in Routing, then press Record. Recording uses Live’s configured input and launch quantization.</p>'}`,'clip',c.id);activeDrawer.clipId=c.clipId;}
+function clipPanel(c,t){openDrawer(c.name||`Empty slot · ${t.name}`,`<div class="actions"><button data-op="clip_fire" data-target="${c.id}">${c.clipId?'▶ Launch':t.arm?'● Record clip':'Launch'}</button><button data-op="clip_stop" data-target="${c.id}">■ Stop</button></div>${c.clipId?`${field('Name',`<input value="${esc(c.name)}" data-edit="clip_name" data-target="${c.clipId}">`)}${field('Loop',`<input type="checkbox" ${c.looping?'checked':''} data-edit="clip_loop" data-target="${c.clipId}">`)}${field('Muted',`<input type="checkbox" ${c.muted?'checked':''} data-edit="clip_mute" data-target="${c.clipId}">`)}${field('Loop start',`<input type="number" min="0" step=".25" value="${c.loopStart}" data-edit="clip_field" data-property="loop_start" data-target="${c.clipId}">`)}${field('Loop end',`<input type="number" min=".25" step=".25" value="${c.loopEnd}" data-edit="clip_field" data-property="loop_end" data-target="${c.clipId}">`)}${field('Launch mode',`<select data-edit="clip_field" data-property="launch_mode" data-target="${c.clipId}">${['Trigger','Gate','Toggle','Repeat'].map((v,i)=>`<option value="${i}" ${i===c.launchMode?'selected':''}>${v}</option>`).join('')}</select>`)}<p class="hint">Length: ${c.length} beats</p>${c.midi?`<button data-op="notes" data-target="${c.clipId}" data-length="${c.length}">♪ Edit MIDI notes</button>`:''}<div class="actions"><button data-op="clip_double" data-target="${c.clipId}">Double loop</button><button data-op="clip_quantize" data-target="${c.clipId}">Quantize 1/16</button><button data-op="clip_duplicate" data-track="${t.id}" data-index="${c.index}">Duplicate to next slot</button><button data-op="clip_to_arrangement" data-track="${t.id}" data-clip="${c.clipId}">Copy to Arrangement</button><button class="danger" data-op="clip_delete" data-target="${c.id}">Delete clip</button></div>`:t.midi?`<p class="hint">Create an empty MIDI clip, or arm the track and press Record.</p>${field('Length in beats','<input id="cliplength" type="number" min=".25" max="1024" value="4">')}<button data-op="clip_create" data-target="${c.id}">Create MIDI clip</button>`:'<p class="hint">Arm this audio track, select its input in Routing, then press Record. Recording uses Live’s configured input and launch quantization.</p>'}`,'clip',c.id);activeDrawer.trackId=t.id;activeDrawer.clipId=c.clipId;}
 function settings(){openDrawer('Live Set',`${field('Launch quantization',`<select data-edit="song" data-property="clip_trigger_quantization">${['None','8 bars','4 bars','2 bars','1 bar','1/2','1/2 triplet','1/4','1/4 triplet','1/8','1/8 triplet','1/16','1/16 triplet','1/32'].map((s,i)=>`<option value="${i}" ${i===state.quantization?'selected':''}>${s}</option>`).join('')}</select>`)}${field('Loop',`<input data-edit="song" data-property="loop" type="checkbox" ${state.loop?'checked':''}>`)}${field('Loop start (beats)',`<input type="number" min="0" step="1" value="${state.loopStart}" data-edit="song" data-property="loop_start">`)}${field('Loop length',`<input type="number" min=".25" step="1" value="${state.loopLength}" data-edit="song" data-property="loop_length">`)}${field('Punch in',`<input type="checkbox" data-edit="song" data-property="punch_in" ${state.punchIn?'checked':''}>`)}${field('Punch out',`<input type="checkbox" data-edit="song" data-property="punch_out" ${state.punchOut?'checked':''}>`)}${field('Automation arm',`<input type="checkbox" data-edit="song" data-property="session_automation_record" ${state.automationArm?'checked':''}>`)}${field('MIDI overdub',`<input type="checkbox" data-edit="song" data-property="overdub" ${state.overdub?'checked':''}>`)}${field('Session record',`<input type="checkbox" data-edit="song" data-property="session_record" ${state.sessionRecord?'checked':''}>`)}${field('Beats per bar',`<input type="number" min="1" max="32" value="${state.signature[0]}" data-edit="song" data-property="signature_numerator">`)}${field('Beat unit',`<select data-edit="song" data-property="signature_denominator">${[1,2,4,8,16].map(n=>`<option value="${n}" ${n===state.signature[1]?'selected':''}>1/${n}</option>`).join('')}</select>`)}<div class="section actions"><button data-op="capture_midi">Capture MIDI</button><button data-op="re_enable_automation">Re-enable automation</button><button data-op="continue">Continue playback</button></div><p class="hint">Arrangement recording is the red button in the transport. To record a Session clip, arm a track and tap an empty slot. Input monitoring and routing are in each track’s menu.</p><p class="hint">Your session link is a private remote-control key. Share it only with people you want to control this set. Sessions expire after 24 hours.</p>`,'settings');}
 async function routing(id){const version=drawerVersion;try{const r=await send('routing_get',{target:Number(id)});if(version!==drawerVersion)return;let html='';for(const [key,label,prop] of [['inputs','Audio/MIDI input','input_routing_type'],['inputChannels','Input channel','input_routing_channel'],['outputs','Output','output_routing_type'],['outputChannels','Output channel','output_routing_channel']]){const data=r[key];let arr=Array.isArray(data)?data:Object.values(data||{}).find(Array.isArray)||[];html+=field(label,`<select data-edit="routing" data-property="${prop}" data-target="${id}"><option value="">Choose…</option>${arr.map(x=>`<option value="${esc(JSON.stringify(x))}" ${Object.values(r[{inputs:'input',inputChannels:'inputChannel',outputs:'output',outputChannels:'outputChannel'}[key]]||{}).some(v=>v.identifier===x.identifier)?'selected':''}>${esc(x.display_name||x.name||x.identifier)}</option>`).join('')}</select>`);}openDrawer('Routing · '+trackBy(id).name,html+'<p class="hint">Available choices come from Live. Reopen this panel after changing a routing type to refresh its channels.</p>','routing',id);}catch(e){toast(e.message);}}
 const catalog={
@@ -400,14 +487,47 @@ const catalog={
   "Vocoder"
  ]
 };
-function deviceBrowser(id){const track=trackBy(id);if(!track)return;openDrawer('Add device · '+track.name,`<input id="devicesearch" type="search" placeholder="Search Live devices…" aria-label="Search devices" autocomplete="off"><div id="devicecatalog"></div><p class="hint">Native Live devices only. Availability depends on your Live edition. Samples, presets, plug-ins and Max devices must be loaded in Live.</p>`,'browser',id);$('#drawer').scrollTop=0;filterDevices('');if(!matchMedia('(pointer:coarse)').matches)$('#devicesearch').focus({preventScroll:true});}
+function trackDevices(id){
+ const track=trackBy(id);
+ if(!track)return;
+ openDrawer(track.name,`<h3 class="device-chain-title">Devices</h3><div class="device-chain"><div id="deviceChainList"></div><button class="adddevice" data-op="device_browser" data-target="${id}">＋ Add device</button></div>`,'track_devices',id);
+ updateTrackDevices();
+}
+function updateTrackDevices(){
+ if(activeDrawer?.kind!=='track_devices')return;
+ const track=trackBy(activeDrawer.id);
+ if(!track){closeDrawer();return;}
+ if(track.name!==activeDrawer.title){
+  activeDrawer.title=track.name;
+  $('#drawerTitle').textContent=track.name;
+ }
+ const html=deviceButtons(track.devices)||'<p class="hint">No devices on this track.</p>';
+ if(activeDrawer.chainHtml!==html){
+  $('#deviceChainList').innerHTML=html;
+  activeDrawer.chainHtml=html;
+ }
+}
+function drawerParent(...kinds){
+ return activeDrawer&&kinds.includes(activeDrawer.kind)?activeDrawer:null;
+}
+function returnToDrawer(){
+ const back=activeDrawer?.back;
+ if(!back)return;
+ if(back.kind==='device'&&deviceLocation(back.id))openDeviceDrawer(back.id,back.back,back);
+ else if(back.kind==='track'&&trackBy(back.id))trackDrawer(back.id);
+ else if(back.kind==='track_devices'&&trackBy(back.id))trackDevices(back.id);
+ else if(back.kind==='clip'&&trackBy(back.trackId)?.clips.some(clip=>clip.id===back.id))clipDrawer(back.trackId,back.id);
+ else closeDrawer();
+ reportView();
+}
+function deviceBrowser(id,back=null){const track=trackBy(id);if(!track)return;openDrawer('Add device · '+track.name,`<input id="devicesearch" type="search" placeholder="Search Live devices…" aria-label="Search devices" autocomplete="off"><div id="devicecatalog"></div><p class="hint">Native Live devices only. Availability depends on your Live edition. Samples, presets, plug-ins and Max devices must be loaded in Live.</p>`,'browser',id,back);filterDevices('');if(!matchMedia('(pointer:coarse)').matches)$('#devicesearch').focus({preventScroll:true});}
 function filterDevices(q){
  const track=trackBy(activeDrawer.id);
  const categories=track?.midi?['Instruments','MIDI effects','Audio effects']:['Audio effects','Instruments','MIDI effects'];
  const query=q.trim().toLowerCase();
  $('#devicecatalog').innerHTML=categories.map(cat=>{const hits=catalog[cat].filter(n=>n.toLowerCase().includes(query));return hits.length?`<h3>${cat}</h3><div class="catalog">${hits.map(n=>`<button data-op="device_insert" data-name="${esc(n)}" data-target="${activeDrawer.id}">${esc(n)}</button>`).join('')}</div>`:'';}).join('')||'<p class="hint">No matching native devices.</p>';}
 let noteModel=[],noteClip=0,noteLength=4,noteRoot=60,noteGrid=.25;
-async function notes(id,length){const version=drawerVersion;try{const data=await send('clip_notes_get',{target:id});if(version!==drawerVersion)return;noteModel=data.notes||[];noteClip=id;noteLength=length||noteLength;openDrawer('MIDI note editor',`<div class="notecontrols">${field('Lowest pitch',`<select id="noteroot">${[36,48,60,72,84].map(n=>`<option value="${n}" ${n===noteRoot?'selected':''}>C${n/12-2}</option>`).join('')}</select>`)}${field('Grid',`<select id="notegrid"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option></select>`)}${field('Velocity','<input id="notevelocity" type="number" min="1" max="127" value="100">')}</div><p class="hint">Tap an empty cell to add a note; tap a note to remove it. Scroll for longer clips.</p><div id="pianoroll"></div><p class="hint" id="notecount"></p>`,'notes',id);$('#notegrid').value=noteGrid;drawNotes();}catch(e){toast(e.message);}}
+async function notes(id,length){const version=drawerVersion;try{const data=await send('clip_notes_get',{target:id});if(version!==drawerVersion)return;noteModel=data.notes||[];noteClip=id;noteLength=length||noteLength;openDrawer('MIDI note editor',`<div class="notecontrols">${field('Lowest pitch',`<select id="noteroot">${[36,48,60,72,84].map(n=>`<option value="${n}" ${n===noteRoot?'selected':''}>C${n/12-2}</option>`).join('')}</select>`)}${field('Grid',`<select id="notegrid"><option value="0.25">1/16</option><option value="0.5">1/8</option><option value="1">1/4</option></select>`)}${field('Velocity','<input id="notevelocity" type="number" min="1" max="127" value="100">')}</div><p class="hint">Tap an empty cell to add a note; tap a note to remove it. Scroll for longer clips.</p><div id="pianoroll"></div><p class="hint" id="notecount"></p>`,'notes',id,drawerParent('clip'));$('#notegrid').value=noteGrid;drawNotes();}catch(e){toast(e.message);}}
 function pitchName(p){return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][p%12]+(Math.floor(p/12)-2);}
 function drawNotes(){const steps=Math.min(256,Math.ceil(noteLength/noteGrid));$('#pianoroll').innerHTML=`<div class="pianogrid" style="--steps:${steps}"><label class="pitchkey">Beat</label>${Array.from({length:steps},(_,j)=>`<span class="gridbeat">${j%(1/noteGrid)===0?Math.floor(j*noteGrid)+1:''}</span>`).join('')}${Array.from({length:13},(_,i)=>{const pitch=noteRoot+12-i;return `<label class="pitchkey ${[1,3,6,8,10].includes(pitch%12)?'black':''}">${pitchName(pitch)}</label>${Array.from({length:steps},(_,j)=>{const n=noteModel.find(n=>n.pitch===pitch&&n.start_time>=j*noteGrid-.001&&n.start_time<(j+1)*noteGrid-.001);return `<button class="notecell ${n?'filled':''} ${j%(1/noteGrid)===0?'beat':''}" data-op="note_toggle" data-pitch="${pitch}" data-start="${j*noteGrid}" ${n?`data-note="${n.note_id}"`:''} aria-label="${pitchName(pitch)}, beat ${(j*noteGrid+1).toFixed(2)}${n?', remove note':''}">${n?'●':''}</button>`;}).join('')}`;}).join('')}</div>`;$('#notecount').textContent=`${noteModel.length} ${noteModel.length===1?'note':'notes'} · ${noteLength} beats${noteLength/noteGrid>256?' · showing first '+(256*noteGrid)+' beats':''}`;}
 DeviceGestures.configure(busy=>{dragging=busy;},()=>hostOnline);
@@ -429,7 +549,9 @@ function resetInteractions(){
  rejectPending('Live connection or set changed');
 }
 function updateWriteAvailability(){
- for(const button of document.querySelectorAll('[data-op="tempo_up"],[data-op="tempo_down"]'))button.disabled=!hostOnline;
+ for(const control of document.querySelectorAll('.transport button,#tempo,#backarrangement,.set-actions-panel button,[data-op="settings"]'))control.disabled=!hostOnline;
+ $('#undo').disabled=!hostOnline||!state?.canUndo;
+ $('#redo').disabled=!hostOnline||!state?.canRedo;
  for(const el of document.querySelectorAll('input[data-param],select[data-param],[data-knob-input],[data-op="reset_parameter"],[data-op="utility_switch"]')){
   const id=Number(el.dataset.param||el.dataset.knobInput||el.dataset.target),p=parameterBy(id);el.disabled=!hostOnline||!p?.enabled;
  }
@@ -477,11 +599,11 @@ async function createAndOpen(button,kind){
   // The result names the exact track. Its metadata can arrive in a later snapshot.
   const deadline=Date.now()+5000;
   while(stillHere()&&!trackBy(result)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,75));
-  if(stillHere()&&trackBy(result))deviceBrowser(result);
+  if(stillHere()&&trackBy(result))deviceBrowser(result,{kind:'track_devices',id:result,title:trackBy(result).name});
  }catch(error){toast(error.message);}
  finally{button.disabled=false;}
 }
-function closeDrawer(){drawerVersion++;$('#drawer').hidden=true;activeDrawer=null;}
+function closeDrawer(){if(DeviceGestures.busy())DeviceGestures.finish();drawerVersion++;$('#drawer').hidden=true;activeDrawer=null;}
 function dismissSetActions(restoreFocus=false){
  const actions=$('.set-actions[open]');
  if(!actions?.open)return;
@@ -495,7 +617,16 @@ document.addEventListener('click',e=>{
 document.addEventListener('keydown',e=>{
  if(e.key==='Escape'&&$('.set-actions[open]')?.open){e.stopImmediatePropagation();dismissSetActions(true);}
 },true);
-document.addEventListener('click',async e=>{const el=e.target.closest('[data-op],[data-view]');if(!el)return;if(el.dataset.view){view=el.dataset.view;if(view==='pinned')closeDrawer();else editingPins=false;try{if(view==='pinned')sessionStorage.setItem(pinnedViewKey,'1');else sessionStorage.removeItem(pinnedViewKey);}catch{}updateViewButtons();render();reportView();if(view==='pinned')pollPinnedDevices();return;}const op=el.dataset.op,id=Number(el.dataset.target);if(op==='close'){closeDrawer();reportView();return;}if(op==='share'){try{await navigator.clipboard.writeText(location.href);toast('Private session link copied');}catch{openDrawer('Controller link',`<p class="hint">Select this link to copy or share it.</p><input id="sharelink" type="text" readonly value="${esc(location.href)}" aria-label="Controller link">`,'share');$('#sharelink').focus();$('#sharelink').select();}return;}if(!state){toast('Waiting for Live');return;}
+document.addEventListener('click',async e=>{const el=e.target.closest('[data-op],[data-view]');if(!el)return;if(el.dataset.view){showView(el.dataset.view);return;}const op=el.dataset.op,id=Number(el.dataset.target);if(op==='close'){closeDrawer();reportView();return;}if(op==='share'){try{await navigator.clipboard.writeText(location.href);toast('Private session link copied');}catch{openDrawer('Controller link',`<p class="hint">Select this link to copy or share it.</p><input id="sharelink" type="text" readonly value="${esc(location.href)}" aria-label="Controller link">`,'share');$('#sharelink').focus();$('#sharelink').select();}return;}if(!state){toast('Waiting for Live');return;}
+ if(op==='drawer_back'){returnToDrawer();return;}
+ if(op==='track_devices'){trackDevices(id);return;}
+ if(op==='view_pinned'){hideToast();showView('pinned');return;}
+ if(op==='go_playhead'){
+  if(!state)return;
+  const main=$('#main'),head=main.querySelector('.lanehead');
+  main.scrollLeft=Math.max(0,state.position*12-(main.clientWidth-(head?.offsetWidth||0))*.35);
+  return;
+ }
  if(op==='tempo_down'||op==='tempo_up'){stepTempo(op==='tempo_up'?1:-1);return;}
  if(op==='pin_layout_edit'){editingPins=!editingPins;renderPinned();return;}
  if(op==='pin_move'){
@@ -510,9 +641,9 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-op]
  if(op==='device_help'){toast(el.dataset.help);return;}
  if(op==='device_parameter_view'){const card=el.closest('.pinned-card');if(card){const device=Number(card.dataset.device);pinnedAll.has(device)?pinnedAll.delete(device):pinnedAll.add(device);renderPinned();card.querySelector('.pinned-view-toggle')?.focus({preventScroll:true});}else if(activeDrawer?.kind==='device'){activeDrawer.allParameters=!activeDrawer.allParameters;renderDevice();}return;}
  if(op==='utility_switch'){const p=parameterBy(id);if(!p||!p.enabled||!DeviceGestures.canWrite(id))return;const value=el.getAttribute('aria-pressed')==='true'?p.min:p.max;p.value=value;el.setAttribute('aria-pressed',String(value===p.max));el.classList.toggle('selected',value===p.max);parameterSync.preview(id,value);writeParameter(id,value);return;}
- if(op==='back_arrangement'){act('song_set',{property:'back_to_arranger',value:false});return;}if(op==='reset_parameter'){writeParameter(id,Number(el.dataset.value));return;}if(op==='device_browser'){deviceBrowser(id);return;}
- if(op==='device_previous'||op==='device_next'){const target=neighbouringDevices()?.[op==='device_previous'?'previous':'next'];if(target)openDeviceDrawer(target.id);return;}
- if(op==='device_add_here'){const location=activeDrawer?.kind==='device'&&deviceLocation(activeDrawer.id);if(location)deviceBrowser(location.track.id);return;}
+ if(op==='back_arrangement'){act('song_set',{property:'back_to_arranger',value:false});return;}if(op==='reset_parameter'){writeParameter(id,Number(el.dataset.value));return;}if(op==='device_browser'){deviceBrowser(id,el.closest('#drawer')?drawerParent('track','track_devices'):null);return;}
+ if(op==='device_previous'||op==='device_next'){const target=neighbouringDevices()?.[op==='device_previous'?'previous':'next'];if(target)openDeviceDrawer(target.id,activeDrawer.back);return;}
+ if(op==='device_add_here'){const location=activeDrawer?.kind==='device'&&deviceLocation(activeDrawer.id);if(location)deviceBrowser(location.track.id,activeDrawer);return;}
  if(op==='device_insert'){
   const version=drawerVersion;el.disabled=true;
   try{
@@ -520,16 +651,31 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-op]
    // The acknowledgement can arrive before the track with the new device.
    const deadline=Date.now()+3000;
    while(version===drawerVersion&&!deviceLocation(inserted)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,75));
-   if(version===drawerVersion&&deviceLocation(inserted))openDeviceDrawer(inserted);
+   if(version===drawerVersion&&deviceLocation(inserted))openDeviceDrawer(inserted,activeDrawer.back);
    toast('Device added');
   }catch(e){toast(e.message);}finally{el.disabled=false;}return;
  }
  if(op==='device_delete'){if(confirm('Delete this device?')){const version=drawerVersion;try{await send(op,{target:id});if(version===drawerVersion&&activeDrawer?.kind==='device'&&activeDrawer.id===id){drawerVersion++;$('#drawer').hidden=true;activeDrawer=null;}toast('Device deleted');}catch(e){toast(e.message);}}return;}
  if(op==='notes'){notes(id,Number(el.dataset.length));return;}
- if(op==='note_toggle'){el.disabled=true;try{if(el.dataset.note)await send('clip_note_delete',{target:noteClip,noteId:Number(el.dataset.note)});else await send('clip_note_add',{target:noteClip,pitch:Number(el.dataset.pitch),start:Number(el.dataset.start),duration:noteGrid,velocity:Number($('#notevelocity').value)});const d=await send('clip_notes_get',{target:noteClip});noteModel=d.notes||[];drawNotes();}catch(e){el.disabled=false;toast(e.message);}return;}
+ if(op==='note_toggle'){
+  const clip=noteClip,version=drawerVersion;
+  el.disabled=true;
+  try{
+   if(el.dataset.note)await send('clip_note_delete',{target:clip,noteId:Number(el.dataset.note)});
+   else await send('clip_note_add',{target:clip,pitch:Number(el.dataset.pitch),start:Number(el.dataset.start),duration:noteGrid,velocity:Number($('#notevelocity').value)});
+   if(version!==drawerVersion)return;
+   const data=await send('clip_notes_get',{target:clip});
+   if(version!==drawerVersion)return;
+   noteModel=data.notes||[];
+   drawNotes();
+  }catch(error){
+   if(version===drawerVersion){el.disabled=false;toast(error.message);}
+  }
+  return;
+ }
  if(op==='clip_duplicate'){act(op,{target:Number(el.dataset.track),index:Number(el.dataset.index)});return;}
  if(op==='clip_to_arrangement'){act(op,{target:Number(el.dataset.track),clip:Number(el.dataset.clip),position:state.position}).then(ok=>{if(ok!==false)toast('Copied to Arrangement at playhead');});return;}
- if(op==='record'){act('song_set',{property:'record_mode',value:!state.record});return;}if(op==='metro'){act('song_set',{property:'metronome',value:!state.metronome});return;}if(['mute','solo','arm'].includes(op)){toggle(id,op);return;}if(op==='device'){openDeviceDrawer(id);return;}if(op==='track'){trackDrawer(id);return;}if(op==='clip'){clipDrawer(el.dataset.track,id);return;}if(op==='settings'){settings();return;}if(op==='routing'){routing(id);return;}if(op==='add'){openDrawer('Add track','<div class="actions"><button data-op="create_midi">＋ MIDI track</button><button data-op="create_audio">＋ Audio track</button><button data-op="create_return">＋ Return track</button></div>','add');return;}if(op.startsWith('create_')||op==='scene_create'){await createAndOpen(el,op==='scene_create'?null:op.slice(7));return;}if(op==='next'||op==='previous'){navigateScenes(sceneOffset+(op==='next'?8:-8));return;}
+ if(op==='record'){act('song_set',{property:'record_mode',value:!state.record});return;}if(op==='metro'){act('song_set',{property:'metronome',value:!state.metronome});return;}if(['mute','solo','arm'].includes(op)){toggle(id,op);return;}if(op==='device'){openDeviceDrawer(id,el.closest('#drawer')?drawerParent('track','track_devices'):null);return;}if(op==='track'){trackDrawer(id);return;}if(op==='clip'){clipDrawer(el.dataset.track,id);return;}if(op==='settings'){settings();return;}if(op==='routing'){routing(id);return;}if(op==='add'){openDrawer('Add track','<div class="actions"><button data-op="create_midi">＋ MIDI track</button><button data-op="create_audio">＋ Audio track</button><button data-op="create_return">＋ Return track</button></div>','add');return;}if(op.startsWith('create_')||op==='scene_create'){await createAndOpen(el,op==='scene_create'?null:op.slice(7));return;}if(op==='next'||op==='previous'){navigateScenes(sceneOffset+(op==='next'?8:-8));return;}
  if(op==='duplicate_track'){act('track_duplicate',{target:id});return;}if(op==='delete_track'){if(confirm('Delete this track? You can undo in Live.'))act('track_delete',{target:id});return;}
  if(op==='clip_create'){await act(op,{target:id,length:Number($('#cliplength').value)});return;}if(op==='clip_delete'){if(confirm('Delete this clip?'))await act(op,{target:id});return;}if(op==='clip_quantize'){act(op,{target:id,grid:5,amount:1});return;}
  if(op==='scene'){const scene=state.scenes.find(x=>x.id===id);if(scene)sceneDrawer(scene);return;}if(op==='scene_delete'&&!confirm('Delete this scene?'))return;
@@ -538,8 +684,8 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-op]
  if(['clip_fire','clip_stop','scene_fire','track_stop','stop_all'].includes(op)){el.classList.add('queued');Promise.resolve(act(op,id?{target:id}:{})).finally(()=>setTimeout(()=>el.classList.remove('queued'),250));return;}
  act(op,id?{target:id}:{});
 });
-document.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(e.target.tagName)||!state)return;if(e.code==='Space'){e.preventDefault();act(state.playing?'stop':'play');}if(e.code==='Escape'){closeDrawer();reportView();}});
-setInterval(()=>{if(hostOnline&&lastMessage&&Date.now()-lastMessage>6000){status(false,'Live not responding');ws?.close();}},2000);
+document.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA','BUTTON'].includes(e.target.tagName)||!state)return;if(e.code==='Space'){e.preventDefault();act(state.playing?'stop':'play');}if(e.code==='Escape'){if(activeDrawer?.back)returnToDrawer();else{closeDrawer();reportView();}}});
+setInterval(()=>{if(hostOnline&&lastMessage&&Date.now()-lastMessage>6000){status(false,'reconnecting');ws?.close();}},2000);
 window.addEventListener('online',()=>{if(!ws||ws.readyState>1){clearTimeout(reconnectTimer);connect();}});document.addEventListener('visibilitychange',()=>{if(document.hidden){resetInteractions();return;}if(!document.hidden&&(!ws||ws.readyState>1)){clearTimeout(reconnectTimer);connect();}else if(!document.hidden&&state)act('refresh');});connect();
 
 // Ranges drag relative to their current value along their displayed axis.
@@ -596,7 +742,7 @@ function updateDevicePanels(){if(activeDrawer?.kind==='device'&&deviceDetails)re
 const pinIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 6 0-1 6 4 4v2H6v-2l4-4-1-6Zm3 12v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 function pinButton(kind,id,name){const on=pins.has(kind,id);return `<button class="pin-button ${on?'is-pinned':''}" data-op="pin_toggle" data-pin-kind="${kind}" data-target="${id}" aria-pressed="${on}" aria-label="${on?'Unpin':'Pin'} ${esc(name)}" title="${on?'Remove from Pinned':'Add to Pinned'}">${pinIcon}<span>${on?'Pinned':'Pin'}</span></button>`;}
 function updateDrawerPin(){const button=$('#drawerPin'),kind=activeDrawer?.kind,id=activeDrawer?.id;button.hidden=!['device','track'].includes(kind);if(button.hidden)return;const target=kind==='track'?trackBy(id):deviceLocation(id)?.device;if(!target){button.hidden=true;return;}const on=pins.has(kind,id);button.classList.toggle('is-pinned',on);button.dataset.op='pin_toggle';button.dataset.pinKind=kind;button.dataset.target=id;button.setAttribute('aria-pressed',String(on));button.setAttribute('aria-label',`${on?'Unpin':'Pin'} ${target.name}`);const html=pinIcon+`<span>${on?'Pinned':'Pin'}</span>`;if(button.dataset.pinState!==String(on)){button.innerHTML=html;button.dataset.pinState=String(on);}}
-function togglePin(kind,id){const t=kind==='track'?trackBy(id):deviceLocation(id)?.track,d=kind==='device'?deviceLocation(id)?.device:null,existing=pins.items.find(p=>p.kind===kind&&p.id===id);if(!existing&&!t)return;try{pins.toggle(existing||{kind,id,trackId:t.id,trackKind:t.kind,trackName:t.name,name:d?.name||t.name,className:d?.className||''});}catch(e){toast(e.message);}updateDrawerPin();$('#pinCount').textContent=pins.items.length?`(${pins.items.length})`:'';reportView();if(view==='pinned')renderPinned();else document.querySelectorAll(`[data-op="pin_toggle"][data-pin-kind="${kind}"][data-target="${id}"]`).forEach(b=>{const on=pins.has(kind,id);b.classList.toggle('is-pinned',on);b.setAttribute('aria-pressed',String(on));});pollPinnedDevices();}
+function togglePin(kind,id){const t=kind==='track'?trackBy(id):deviceLocation(id)?.track,d=kind==='device'?deviceLocation(id)?.device:null,existing=pins.items.find(p=>p.kind===kind&&p.id===id);if(!existing&&!t)return;const first=!existing&&!pins.items.length;try{pins.toggle(existing||{kind,id,trackId:t.id,trackKind:t.kind,trackName:t.name,name:d?.name||t.name,className:d?.className||''});}catch(e){toast(e.message);}if(first&&pins.has(kind,id)&&view!=='pinned')toast('Added to Pinned',{op:'view_pinned',label:'View Pinned'});updateDrawerPin();$('#pinCount').textContent=pins.items.length?`(${pins.items.length})`:'';reportView();if(view==='pinned')renderPinned();else document.querySelectorAll(`[data-op="pin_toggle"][data-pin-kind="${kind}"][data-target="${id}"]`).forEach(b=>{const on=pins.has(kind,id);b.classList.toggle('is-pinned',on);b.setAttribute('aria-pressed',String(on));});pollPinnedDevices();}
 function pinTarget(pin){const t=trackBy(pin.trackId);if(!t||t.kind!==pin.trackKind)return null;if(pin.kind==='track')return t;const location=deviceLocation(pin.id);return location?.track.id===pin.trackId&&location.device.className===pin.className?location.device:null;}
 function genericPower(d){
  return d.parameters.find(p=>p.name==='Device On'&&p.quantized&&p.min===0&&p.max===1);
@@ -657,7 +803,12 @@ function renderPinned(){
    moves[1].disabled=index===pins.items.length-1;
    head.querySelector('.pin-width').value=pin.width||'auto';
   }
-  head.querySelector('.pinned-view-toggle')?.setAttribute('aria-pressed',String(all));
+  const viewToggle=head.querySelector('.pinned-view-toggle');
+  if(viewToggle){
+   viewToggle.setAttribute('aria-pressed',String(all));
+   const label=all?'Device view':'All parameters';
+   if(viewToggle.textContent!==label)viewToggle.textContent=label;
+  }
   syncGenericPower(head,power);
   card.style.setProperty('--pin-color',color(t?.color));
   body.disabled=!hostOnline||!target;
