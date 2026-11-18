@@ -6,7 +6,7 @@ Pocket Live is a **Max for Live device** that lets you control your Ableton Live
 Set from a phone, tablet, or computer. Launch clips, mix tracks, and tweak
 devices from a browser on the same Wi-Fi or over the internet.
 
-**[Get the latest Pocket Live release](https://github.com/supersational/m4l/releases/latest)** · [Download the v0.1.0 device ZIP](https://github.com/supersational/m4l/releases/download/v0.1.0/Pocket-Live-v0.1.0.zip)
+**[Download Pocket Live](https://github.com/supersational/m4l/releases/latest/download/Pocket-Live.zip)** · [Release notes](https://github.com/supersational/m4l/releases/latest)
 
 The download is ready to use. **Cloud** mode connects through the Pocket Live
 relay we already host on Cloudflare. **Local** mode works over the same Wi-Fi.
