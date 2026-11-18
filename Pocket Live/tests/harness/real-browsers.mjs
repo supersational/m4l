@@ -582,14 +582,15 @@ try {
   await scenario("browser-track-create-rename-delete", async () => {
     const before = await call("snapshot"),
       names = before.tracks.map((t) => t.name);
-    await A.locator("nav")
-      .getByRole("button", { name: "＋ Track", exact: true })
-      .click();
+    await A.locator(".set-actions summary").click();
+    await A.getByRole("button", { name: "Add track", exact: true }).click();
     await A.getByRole("button", { name: "＋ MIDI track", exact: true }).click();
     const created = await settle(
         (s) => s.tracks.length === before.tracks.length + 1,
       ),
       name = created.native.tracks.find((t) => !names.includes(t.name)).name;
+    await A.getByRole("heading", { name: "Add device · " + name, exact: true }).waitFor();
+    await A.getByRole("searchbox", { name: "Search Live devices" }).waitFor();
     await closePanel(A);
     await trackRow(A, name)
       .getByRole("button", { name: "Track controls", exact: true })
@@ -610,22 +611,15 @@ try {
   });
   await scenario("browser-scene-create-delete", async () => {
     const before = (await call("detail_snapshot")).sceneCount;
-    await B.locator("nav")
-      .getByRole("button", { name: "＋ Scene", exact: true })
-      .click();
+    await B.locator(".set-actions summary").click();
+    await B.getByRole("button", { name: "Add scene", exact: true }).click();
     await waitDetail((d) => d.sceneCount === before + 1);
     for (const { page } of clients)
       await page
         .locator("#scenerange")
         .filter({ hasText: "/ " + (before + 1) })
         .waitFor();
-    await B.getByRole("button", { name: "↓ Scenes", exact: true }).click();
-    await B.locator("#scenerange")
-      .filter({
-        hasText: before + 1 + "–" + (before + 1) + " / " + (before + 1),
-      })
-      .waitFor();
-    await B.locator(".track.scenes [data-op=scene]").last().click();
+    await B.locator('#drawer input[data-edit=scene_name]').waitFor();
     B.once("dialog", (dialog) => dialog.accept());
     await B.locator("[data-op=scene_delete]").click();
     await closePanel(B);

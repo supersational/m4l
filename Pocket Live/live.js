@@ -438,6 +438,12 @@ function integer(v,min,max){v=finite(v,min,max);if(Math.round(v)!==v)throw Error
 function boolean(v){if(v!==true&&v!==false&&v!==0&&v!==1)throw Error('Boolean required');return Number(v);}
 function name(v){v=String(v);if(v.length>128)throw Error('Name is too long');return v;}
 function call_(a,f,args){return a.call.apply(a,[f].concat(args||[]));}
+function createdId(list,before){
+ var after=ids(song,list),added=[];
+ for(var i=0;i<after.length;i++)if(before.indexOf(after[i])<0)added.push(after[i]);
+ if(added.length!==1)throw Error('Live did not confirm the new item');
+ return added[0];
+}
 function command(raw){var packet=null;try{packet=JSON.parse(raw);if(packet.type==='sync'){stateSync(packet);return;}var r=packet.request,op=r.op,result=true;if(r.epoch!==epoch)throw Error('Live Set changed; wait for refresh');
  if(op==='refresh'){staleAll();forceEmit=true;}
  else if(op==='play')song.call('start_playing');else if(op==='stop')song.call('stop_playing');else if(op==='continue')song.call('continue_playing');else if(op==='stop_all')song.call('stop_all_clips');else if(op==='tap')song.call('tap_tempo');else if(op==='undo'||op==='redo'||op==='capture_midi'||op==='re_enable_automation')song.call(op);
@@ -448,10 +454,22 @@ function command(raw){var packet=null;try{packet=JSON.parse(raw);if(packet.type=
  else if(op==='track_set'){var a=target(r,'track');if(['mute','solo','arm','fold_state'].indexOf(r.property)>=0)a.set(r.property,boolean(r.value));else if(r.property==='current_monitoring_state')a.set(r.property,integer(r.value,0,2));else if(r.property==='name')a.set('name',name(r.value));else if(r.property==='color')a.set('color',integer(r.value,0,16777215));else throw Error('Unsupported track property');}
  else if(op==='parameter'){var a=target(r,'parameter');if(!Number(read(a,'is_enabled')))throw Error('Parameter is disabled');var v=finite(r.value,Number(read(a,'min')),Number(read(a,'max')));if(Number(read(a,'is_quantized')))v=Math.round(v);a.set('value',v);result=Number(read(a,'value'));if(r.display===true)result={id:Number(r.target),value:result,display:String(a.call('str_for_value',result))};}
  else if(op==='track_stop')target(r,'track').call('stop_all_clips');
- else if(op==='track_create'){if(r.kind==='midi')song.call('create_midi_track',-1);else if(r.kind==='audio')song.call('create_audio_track',-1);else if(r.kind==='return')song.call('create_return_track');else throw Error('Invalid track kind');}
+ else if(op==='track_create'){
+  var list=r.kind==='return'?'return_tracks':'tracks',before=ids(song,list);
+  if(r.kind==='midi')song.call('create_midi_track',-1);
+  else if(r.kind==='audio')song.call('create_audio_track',-1);
+  else if(r.kind==='return')song.call('create_return_track');
+  else throw Error('Invalid track kind');
+  result=createdId(list,before);
+ }
  else if(op==='track_duplicate'||op==='track_delete'){var a=target(r,'track');if(a.id===ownTrack)throw Error('Move the remote device before deleting or duplicating its track');var index=ids(song,'tracks').indexOf(Number(a.id));if(index<0){var ri=ids(song,'return_tracks').indexOf(Number(a.id));if(op==='track_delete'&&ri>=0){song.call('delete_return_track',ri);}else throw Error('Only ordinary tracks can be duplicated');}else song.call(op==='track_delete'?'delete_track':'duplicate_track',index);}
  else if(op==='scene_fire')target(r,'scene').call('fire');
- else if(op==='scene_create')song.call('create_scene',-1);
+ else if(op==='scene_create'){
+  var before=ids(song,'scenes');
+  song.call('create_scene',-1);
+  var id=createdId('scenes',before);
+  result={id:id,name:read(attach(id,'scene'),'name','Scene')};
+ }
  else if(op==='scene_duplicate'||op==='scene_delete'){var a=target(r,'scene'),idx=ids(song,'scenes').indexOf(Number(a.id));song.call(op==='scene_delete'?'delete_scene':'duplicate_scene',idx);}
  else if(op==='scene_rename')target(r,'scene').set('name',name(r.value));
  else if(op==='view')setView(String(packet.client),r.tracks,r.offset,r.devices);

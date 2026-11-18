@@ -1,6 +1,6 @@
 const recordingTracker=new RecordingUI.Tracker();
 const pins=new PinStore({getItem:k=>localStorage.getItem(k),setItem:(k,v)=>localStorage.setItem(k,v)}),deviceModels=new Map(),pinnedAll=new Set();
-let pinnedBusy=false,interactionGeneration=0,tempoEdit=null;
+let editingPins=false,pinnedBusy=false,interactionGeneration=0,tempoEdit=null;
 let sceneOffset=0,scenePage=null,sceneRead=null;
 let connectionTransport=location.protocol==='http:'?'local':'cloud';document.body.dataset.transport=connectionTransport;
 function commandID(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,v=>v.toString(16).padStart(2,'0')).join('');return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);}
@@ -10,7 +10,7 @@ const room=location.pathname.split('/')[2],token=location.hash.slice(1);if(token
 // Pin data stays in localStorage; just the open page is remembered per tab.
 const pinnedViewKey='pocket-live:pinned-view:'+room;
 if(room&&token){try{if(sessionStorage.getItem(pinnedViewKey)==='1')view='pinned';}catch{}}
-function updateViewButtons(){document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===view));}
+function updateViewButtons(){document.querySelectorAll('[data-view]').forEach(b=>{const selected=b.dataset.view===view;b.classList.toggle('selected',selected);if(selected)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});}
 updateViewButtons();
 const color=n=>'#'+(Number.isFinite(Number(n))?Number(n):7833753).toString(16).padStart(6,'0').slice(-6),db=v=>v<=0?'−∞ dB':(20*Math.log10(v)).toFixed(1)+' dB';
 function foreground(n){const h=color(n),v=parseInt(h.slice(1),16),l=((v>>16)*299+((v>>8)&255)*587+(v&255)*114)/1000;return l>145?'#151515':'#f5f5f5';}
@@ -55,7 +55,7 @@ function connect(){
   }
   if(m.type==='state'){
    if(!m.state||typeof m.state!=='object'||!m.state.epoch||!Array.isArray(m.state.tracks)||!Array.isArray(m.state.scenes))return;
-   if(state&&state.epoch!==m.state.epoch){ClipWaveform.clear();deviceModels.clear();pinnedAll.clear();resetInteractions();deviceDetails=null;if(activeDrawer){drawerVersion++;activeDrawer=null;$('#drawer').hidden=true;}}
+   if(state&&state.epoch!==m.state.epoch){ClipWaveform.clear();deviceModels.clear();pinnedAll.clear();editingPins=false;resetInteractions();deviceDetails=null;if(activeDrawer){drawerVersion++;activeDrawer=null;$('#drawer').hidden=true;}}
    const previous=state;state=m.state;snapshotReady=true;retry=0;applyScenePage(previous);pruneDeviceModels(previous);pins.use(room+':'+state.epoch);
    for(const t of state.tracks||[])parameterSync.reconcile({parameters:[t.volume,t.pan,...t.sends]});
    applyHolds();
@@ -169,7 +169,7 @@ function updateRecordingUI(){
   preview.title=take.observed?'Recording progress since this controller observed the take. The finished clip replaces this preview; no audio waveform is streamed.':'Recording in progress';
  }
 }
-function openDrawer(title,html,kind,id){drawerVersion++;activeDrawer={kind,id};reportView();$('#drawerTitle').textContent=title;$('#drawerBody').innerHTML=html;delete $('#drawerBody').dataset.deviceMode;delete $('#drawerBody').dataset.deviceId;$('#drawer').hidden=false;updateDrawerPin();updateDrawerDeviceNav();}
+function openDrawer(title,html,kind,id){drawerVersion++;activeDrawer={kind,id};$('#drawerPower').innerHTML='';reportView();$('#drawerTitle').textContent=title;$('#drawerBody').innerHTML=html;delete $('#drawerBody').dataset.deviceMode;delete $('#drawerBody').dataset.deviceId;$('#drawer').hidden=false;updateDrawerPin();updateDrawerDeviceNav();}
 // A tapped toggle shows at once and holds until Live answers, so an older snapshot still in
 // flight cannot flick it back. Live's own change arrives as a patch (see applyPatch).
 const holds=new Map();
@@ -313,7 +313,16 @@ function parameterControl(p){const attr=`data-param="${p.id}" aria-label="${esc(
 function deviceClass(id){let found='';function visit(list){for(const d of list||[]){if(d.id===id)found=d.className;for(const c of d.chains||[])visit(c.devices);}}for(const t of state?.tracks||[])visit(t.devices);return found;}
 function deviceProfile(d){return DeviceUI.find(d,d.className||deviceClass(d.id));}
 function utilityView(d){return UtilityProfile.matches(d,d.className||deviceClass(d.id));}
-function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)return;$('#drawerTitle').textContent=d.name;const root=$('#drawerBody'),profile=deviceProfile(d),mode=(profile?.spec.id||'generic')+':'+!!activeDrawer.allParameters;if(root.dataset.deviceMode===mode&&root.dataset.deviceId===String(d.id)){DeviceUI.update(root,d,id=>parameterSync.status(id));return;}if(dragging||root.querySelector('input:focus,select:focus'))return;$('#drawerTitle').textContent=d.name;updateDrawerPin();const scroll=$('#drawer').scrollTop;root.innerHTML=(!profile||activeDrawer.allParameters?`<input id="paramsearch" type="search" placeholder="Find a parameter…" aria-label="Search device parameters" value="${esc(activeDrawer.search||'')}">`:'')+genericDeviceBody(d,activeDrawer.allParameters,activeDrawer.search)+`<div class="section actions"><button data-op="device_add_here"><span aria-hidden="true">＋</span> Add device</button><button class="danger" data-op="device_delete" data-target="${d.id}">Delete device</button></div>`;root.dataset.deviceMode=mode;root.dataset.deviceId=d.id;DeviceUI.update(root,d,id=>parameterSync.status(id));$('#drawer').scrollTop=scroll;}
+function renderDrawerPower(d,power){
+ const root=$('#drawerPower');
+ const key=power?String(power.id):'';
+ if(root.dataset.power!==key||!!root.firstElementChild!==!!power){
+  root.innerHTML=power?devicePowerButton(power,d.name):'';
+  root.dataset.power=key;
+ }
+ syncGenericPower(root,power);
+}
+function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)return;$('#drawerTitle').textContent=d.name;const root=$('#drawerBody'),profile=deviceProfile(d),mode=(profile?.spec.id||'generic')+':'+!!activeDrawer.allParameters;renderDrawerPower(d,(!profile||activeDrawer.allParameters)&&genericPower(d));if(root.dataset.deviceMode===mode&&root.dataset.deviceId===String(d.id)){DeviceUI.update(root,d,id=>parameterSync.status(id));return;}if(dragging||root.querySelector('input:focus,select:focus'))return;$('#drawerTitle').textContent=d.name;updateDrawerPin();const scroll=$('#drawer').scrollTop;root.innerHTML=(!profile||activeDrawer.allParameters?`<input id="paramsearch" type="search" placeholder="Find a parameter…" aria-label="Search device parameters" value="${esc(activeDrawer.search||'')}">`:'')+genericDeviceBody(d,activeDrawer.allParameters,activeDrawer.search)+`<div class="section actions"><button data-op="device_add_here"><span aria-hidden="true">＋</span> Add device</button><button class="danger" data-op="device_delete" data-target="${d.id}">Delete device</button></div>`;root.dataset.deviceMode=mode;root.dataset.deviceId=d.id;DeviceUI.update(root,d,id=>parameterSync.status(id));$('#drawer').scrollTop=scroll;}
 
 function filterParameters(q){document.querySelectorAll('#drawerBody .parameter[data-name]').forEach(p=>p.hidden=!p.dataset.name.includes(q.toLowerCase()));}
 function trackDrawer(id){const t=trackBy(id);if(!t)return;openDrawer(t.name,`${field('Name',`<input data-edit="track_name" data-target="${id}" value="${esc(t.name)}">`)}${field('Color',`<input type="color" data-edit="track_color" data-target="${id}" value="${color(t.color)}">`)}${t.monitor!==null?field('Monitor',`<select data-edit="monitor" data-target="${id}">${['In','Auto','Off'].map((s,i)=>`<option value="${i}" ${i===t.monitor?'selected':''}>${s}</option>`).join('')}</select>`):''}<div class="actions">${t.canArm?`<button data-op="arm" data-target="${id}">${t.arm?'Disarm':'Arm for recording'}</button>`:''}<button data-op="track_stop" data-target="${id}">Stop clips</button><button data-op="routing" data-target="${id}">Routing</button></div><div class="section"><h3>Devices</h3>${deviceButtons(t.devices)||'<p class="hint">No devices on this track.</p>'}<button class="adddevice" data-op="device_browser" data-target="${id}">＋ Add device</button></div>${t.kind!=='master'?`<div class="section actions">${t.kind==='track'?`<button data-op="duplicate_track" data-target="${id}" ${t.isBridge?'disabled':''}>Duplicate track</button>`:''}<button class="danger" data-op="delete_track" data-target="${id}" ${t.isBridge?'disabled':''}>Delete track</button></div>`:''}`,'track',id);}
@@ -322,9 +331,73 @@ function clipPanel(c,t){openDrawer(c.name||`Empty slot · ${t.name}`,`<div class
 function settings(){openDrawer('Live Set',`${field('Launch quantization',`<select data-edit="song" data-property="clip_trigger_quantization">${['None','8 bars','4 bars','2 bars','1 bar','1/2','1/2 triplet','1/4','1/4 triplet','1/8','1/8 triplet','1/16','1/16 triplet','1/32'].map((s,i)=>`<option value="${i}" ${i===state.quantization?'selected':''}>${s}</option>`).join('')}</select>`)}${field('Loop',`<input data-edit="song" data-property="loop" type="checkbox" ${state.loop?'checked':''}>`)}${field('Loop start (beats)',`<input type="number" min="0" step="1" value="${state.loopStart}" data-edit="song" data-property="loop_start">`)}${field('Loop length',`<input type="number" min=".25" step="1" value="${state.loopLength}" data-edit="song" data-property="loop_length">`)}${field('Punch in',`<input type="checkbox" data-edit="song" data-property="punch_in" ${state.punchIn?'checked':''}>`)}${field('Punch out',`<input type="checkbox" data-edit="song" data-property="punch_out" ${state.punchOut?'checked':''}>`)}${field('Automation arm',`<input type="checkbox" data-edit="song" data-property="session_automation_record" ${state.automationArm?'checked':''}>`)}${field('MIDI overdub',`<input type="checkbox" data-edit="song" data-property="overdub" ${state.overdub?'checked':''}>`)}${field('Session record',`<input type="checkbox" data-edit="song" data-property="session_record" ${state.sessionRecord?'checked':''}>`)}${field('Beats per bar',`<input type="number" min="1" max="32" value="${state.signature[0]}" data-edit="song" data-property="signature_numerator">`)}${field('Beat unit',`<select data-edit="song" data-property="signature_denominator">${[1,2,4,8,16].map(n=>`<option value="${n}" ${n===state.signature[1]?'selected':''}>1/${n}</option>`).join('')}</select>`)}<div class="section actions"><button data-op="capture_midi">Capture MIDI</button><button data-op="re_enable_automation">Re-enable automation</button><button data-op="continue">Continue playback</button></div><p class="hint">Arrangement recording is the red button in the transport. To record a Session clip, arm a track and tap an empty slot. Input monitoring and routing are in each track’s menu.</p><p class="hint">Your session link is a private remote-control key. Share it only with people you want to control this set. Sessions expire after 24 hours.</p>`,'settings');}
 async function routing(id){const version=drawerVersion;try{const r=await send('routing_get',{target:Number(id)});if(version!==drawerVersion)return;let html='';for(const [key,label,prop] of [['inputs','Audio/MIDI input','input_routing_type'],['inputChannels','Input channel','input_routing_channel'],['outputs','Output','output_routing_type'],['outputChannels','Output channel','output_routing_channel']]){const data=r[key];let arr=Array.isArray(data)?data:Object.values(data||{}).find(Array.isArray)||[];html+=field(label,`<select data-edit="routing" data-property="${prop}" data-target="${id}"><option value="">Choose…</option>${arr.map(x=>`<option value="${esc(JSON.stringify(x))}" ${Object.values(r[{inputs:'input',inputChannels:'inputChannel',outputs:'output',outputChannels:'outputChannel'}[key]]||{}).some(v=>v.identifier===x.identifier)?'selected':''}>${esc(x.display_name||x.name||x.identifier)}</option>`).join('')}</select>`);}openDrawer('Routing · '+trackBy(id).name,html+'<p class="hint">Available choices come from Live. Reopen this panel after changing a routing type to refresh its channels.</p>','routing',id);}catch(e){toast(e.message);}}
 const catalog={
- 'MIDI effects':['Arpeggiator','Chord','MIDI Effect Rack','Note Length','Pitch','Random','Scale','Velocity'],
- 'Instruments':['Analog','Collision','Drift','Drum Rack','Electric','Impulse','Instrument Rack','Meld','Operator','Sampler','Simpler','Tension','Wavetable'],
- 'Audio effects':['Amp','Audio Effect Rack','Auto Filter','Auto Pan','Beat Repeat','Cabinet','Channel EQ','Chorus-Ensemble','Compressor','Corpus','Delay','Drum Buss','Dynamic Tube','Echo','EQ Eight','EQ Three','Erosion','Filter Delay','Gate','Glue Compressor','Grain Delay','Hybrid Reverb','Limiter','Multiband Dynamics','Overdrive','Pedal','Phaser-Flanger','Redux','Resonators','Reverb','Roar','Saturator','Shifter','Spectral Resonator','Spectral Time','Spectrum','Tuner','Utility','Vocoder']};
+ "MIDI effects": [
+  "Arpeggiator",
+  "Chord",
+  "MIDI Effect Rack",
+  "Note Length",
+  "Pitch",
+  "Random",
+  "Scale",
+  "Velocity"
+ ],
+ "Instruments": [
+  "Analog",
+  "Collision",
+  "Drift",
+  "Drum Rack",
+  "Electric",
+  "Impulse",
+  "Instrument Rack",
+  "Meld",
+  "Operator",
+  "Sampler",
+  "Simpler",
+  "Tension",
+  "Wavetable"
+ ],
+ "Audio effects": [
+  "Amp",
+  "Audio Effect Rack",
+  "Auto Filter",
+  "Auto Pan-Tremolo",
+  "Beat Repeat",
+  "Cabinet",
+  "Channel EQ",
+  "Chorus-Ensemble",
+  "Compressor",
+  "Corpus",
+  "Delay",
+  "Drum Buss",
+  "Dynamic Tube",
+  "Echo",
+  "EQ Eight",
+  "EQ Three",
+  "Erosion",
+  "Filter Delay",
+  "Gate",
+  "Glue Compressor",
+  "Grain Delay",
+  "Hybrid Reverb",
+  "Limiter",
+  "Multiband Dynamics",
+  "Overdrive",
+  "Pedal",
+  "Phaser-Flanger",
+  "Redux",
+  "Resonators",
+  "Reverb",
+  "Roar",
+  "Saturator",
+  "Shifter",
+  "Spectral Resonator",
+  "Spectral Time",
+  "Spectrum",
+  "Tuner",
+  "Utility",
+  "Vocoder"
+ ]
+};
 function deviceBrowser(id){const track=trackBy(id);if(!track)return;openDrawer('Add device · '+track.name,`<input id="devicesearch" type="search" placeholder="Search Live devices…" aria-label="Search devices" autocomplete="off"><div id="devicecatalog"></div><p class="hint">Native Live devices only. Availability depends on your Live edition. Samples, presets, plug-ins and Max devices must be loaded in Live.</p>`,'browser',id);$('#drawer').scrollTop=0;filterDevices('');if(!matchMedia('(pointer:coarse)').matches)$('#devicesearch').focus({preventScroll:true});}
 function filterDevices(q){
  const track=trackBy(activeDrawer.id);
@@ -378,13 +451,62 @@ document.addEventListener('input',e=>{
  DeviceGestures.stream(id,value,writeParameter,owner);
 });
 
+document.addEventListener('change',event=>{
+ const select=event.target.closest?.('.pin-width');
+ const card=select?.closest('.pinned-card');
+ if(!editingPins||!card)return;
+ try{pins.setWidth(card.dataset.pinKind,Number(card.dataset.pinId),select.value);}catch(error){toast(error.message);}
+ renderPinned();
+});
 document.addEventListener('change',e=>{if(e.target.id==='noteroot'){noteRoot=Number(e.target.value);drawNotes();return;}if(e.target.id==='notegrid'){noteGrid=Number(e.target.value);drawNotes();return;}if(e.target.dataset.param&&e.target.tagName==='SELECT'){writeParameter(Number(e.target.dataset.param),Number(e.target.value));return;}const d=e.target.dataset,v=e.target.type==='checkbox'?e.target.checked:e.target.value,id=Number(d.target);if(e.target.id==='tempo')commitTempo(e.target);else if(d.edit==='song')act('song_set',{property:d.property,value:typeof v==='boolean'?v:Number(v)});else if(d.edit==='scene_name')act('scene_rename',{target:id,value:v});else if(d.edit==='track_name')act('track_set',{target:id,property:'name',value:v});else if(d.edit==='track_color')act('track_set',{target:id,property:'color',value:parseInt(v.slice(1),16)});else if(d.edit==='monitor')act('track_set',{target:id,property:'current_monitoring_state',value:Number(v)});else if(d.edit==='clip_field')act('clip_set',{target:id,property:d.property,value:Number(v)});else if(d.edit==='clip_name')act('clip_set',{target:id,property:'name',value:v});else if(d.edit==='clip_loop'||d.edit==='clip_mute')act('clip_set',{target:id,property:d.edit==='clip_loop'?'looping':'muted',value:v});else if(d.edit==='routing'&&v)act('routing_set',{target:id,property:d.property,value:JSON.parse(v)});});
+function sceneDrawer(s){
+ const id=s.id;
+ openDrawer(s.name,`${field('Name',`<input data-edit="scene_name" data-target="${id}" value="${esc(s.name)}">`)}<div class="actions"><button data-op="scene_fire" data-target="${id}">▶ Launch scene</button><button data-op="scene_duplicate" data-target="${id}">Duplicate</button><button data-op="scene_delete" data-target="${id}" class="danger">Delete</button></div>`,'scene',id);
+}
+async function createAndOpen(button,kind){
+ const version=drawerVersion,generation=interactionGeneration,page=view;
+ const stillHere=()=>version===drawerVersion&&generation===interactionGeneration&&page===view;
+ button.disabled=true;
+ try{
+  const result=kind?await send('track_create',{kind}):await send('scene_create');
+  if(!stillHere())return;
+  if(result===true){toast('Reload the updated Pocket Live device to open new tracks and scenes automatically');return;}
+  if(!kind){sceneDrawer(result);return;}
+  // The result names the exact track. Its metadata can arrive in a later snapshot.
+  const deadline=Date.now()+5000;
+  while(stillHere()&&!trackBy(result)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,75));
+  if(stillHere()&&trackBy(result))deviceBrowser(result);
+ }catch(error){toast(error.message);}
+ finally{button.disabled=false;}
+}
 function closeDrawer(){drawerVersion++;$('#drawer').hidden=true;activeDrawer=null;}
-document.addEventListener('click',async e=>{const el=e.target.closest('[data-op],[data-view]');if(!el)return;if(el.dataset.view){view=el.dataset.view;if(view==='pinned')closeDrawer();try{if(view==='pinned')sessionStorage.setItem(pinnedViewKey,'1');else sessionStorage.removeItem(pinnedViewKey);}catch{}updateViewButtons();render();reportView();if(view==='pinned')pollPinnedDevices();return;}const op=el.dataset.op,id=Number(el.dataset.target);if(op==='close'){closeDrawer();reportView();return;}if(op==='share'){try{await navigator.clipboard.writeText(location.href);toast('Private session link copied');}catch{openDrawer('Controller link',`<p class="hint">Select this link to copy or share it.</p><input id="sharelink" type="text" readonly value="${esc(location.href)}" aria-label="Controller link">`,'share');$('#sharelink').focus();$('#sharelink').select();}return;}if(!state){toast('Waiting for Live');return;}
+function dismissSetActions(restoreFocus=false){
+ const actions=$('.set-actions[open]');
+ if(!actions?.open)return;
+ actions.open=false;
+ if(restoreFocus)actions.querySelector('summary').focus();
+}
+document.addEventListener('click',e=>{
+ const actions=e.target.closest('.set-actions');
+ if(!actions||e.target.closest('.set-actions-panel button'))dismissSetActions(Boolean(actions));
+});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&$('.set-actions[open]')?.open){e.stopImmediatePropagation();dismissSetActions(true);}
+},true);
+document.addEventListener('click',async e=>{const el=e.target.closest('[data-op],[data-view]');if(!el)return;if(el.dataset.view){view=el.dataset.view;if(view==='pinned')closeDrawer();else editingPins=false;try{if(view==='pinned')sessionStorage.setItem(pinnedViewKey,'1');else sessionStorage.removeItem(pinnedViewKey);}catch{}updateViewButtons();render();reportView();if(view==='pinned')pollPinnedDevices();return;}const op=el.dataset.op,id=Number(el.dataset.target);if(op==='close'){closeDrawer();reportView();return;}if(op==='share'){try{await navigator.clipboard.writeText(location.href);toast('Private session link copied');}catch{openDrawer('Controller link',`<p class="hint">Select this link to copy or share it.</p><input id="sharelink" type="text" readonly value="${esc(location.href)}" aria-label="Controller link">`,'share');$('#sharelink').focus();$('#sharelink').select();}return;}if(!state){toast('Waiting for Live');return;}
  if(op==='tempo_down'||op==='tempo_up'){stepTempo(op==='tempo_up'?1:-1);return;}
+ if(op==='pin_layout_edit'){editingPins=!editingPins;renderPinned();return;}
+ if(op==='pin_move'){
+  const pin=el.closest('.pinned-card');if(!editingPins||!pin)return;
+  try{pins.move(pin.dataset.pinKind,Number(pin.dataset.pinId),Number(el.dataset.direction));}catch(error){toast(error.message);}
+  renderPinned();
+  if(el.disabled)pin.querySelector('[data-op="pin_move"]:enabled')?.focus({preventScroll:true});
+  else el.focus({preventScroll:true});
+  return;
+ }
  if(op==='pin_toggle'){togglePin(el.dataset.pinKind,id);return;}
  if(op==='device_help'){toast(el.dataset.help);return;}
- if(op==='device_parameter_view'){const card=el.closest('.pinned-card');if(card){const device=Number(card.dataset.device);pinnedAll.has(device)?pinnedAll.delete(device):pinnedAll.add(device);renderPinned();}else if(activeDrawer?.kind==='device'){activeDrawer.allParameters=!activeDrawer.allParameters;renderDevice();}return;}
+ if(op==='device_parameter_view'){const card=el.closest('.pinned-card');if(card){const device=Number(card.dataset.device);pinnedAll.has(device)?pinnedAll.delete(device):pinnedAll.add(device);renderPinned();card.querySelector('.pinned-view-toggle')?.focus({preventScroll:true});}else if(activeDrawer?.kind==='device'){activeDrawer.allParameters=!activeDrawer.allParameters;renderDevice();}return;}
  if(op==='utility_switch'){const p=parameterBy(id);if(!p||!p.enabled||!DeviceGestures.canWrite(id))return;const value=el.getAttribute('aria-pressed')==='true'?p.min:p.max;p.value=value;el.setAttribute('aria-pressed',String(value===p.max));el.classList.toggle('selected',value===p.max);parameterSync.preview(id,value);writeParameter(id,value);return;}
  if(op==='back_arrangement'){act('song_set',{property:'back_to_arranger',value:false});return;}if(op==='reset_parameter'){writeParameter(id,Number(el.dataset.value));return;}if(op==='device_browser'){deviceBrowser(id);return;}
  if(op==='device_previous'||op==='device_next'){const target=neighbouringDevices()?.[op==='device_previous'?'previous':'next'];if(target)openDeviceDrawer(target.id);return;}
@@ -405,10 +527,10 @@ document.addEventListener('click',async e=>{const el=e.target.closest('[data-op]
  if(op==='note_toggle'){el.disabled=true;try{if(el.dataset.note)await send('clip_note_delete',{target:noteClip,noteId:Number(el.dataset.note)});else await send('clip_note_add',{target:noteClip,pitch:Number(el.dataset.pitch),start:Number(el.dataset.start),duration:noteGrid,velocity:Number($('#notevelocity').value)});const d=await send('clip_notes_get',{target:noteClip});noteModel=d.notes||[];drawNotes();}catch(e){el.disabled=false;toast(e.message);}return;}
  if(op==='clip_duplicate'){act(op,{target:Number(el.dataset.track),index:Number(el.dataset.index)});return;}
  if(op==='clip_to_arrangement'){act(op,{target:Number(el.dataset.track),clip:Number(el.dataset.clip),position:state.position}).then(ok=>{if(ok!==false)toast('Copied to Arrangement at playhead');});return;}
- if(op==='record'){act('song_set',{property:'record_mode',value:!state.record});return;}if(op==='metro'){act('song_set',{property:'metronome',value:!state.metronome});return;}if(['mute','solo','arm'].includes(op)){toggle(id,op);return;}if(op==='device'){openDeviceDrawer(id);return;}if(op==='track'){trackDrawer(id);return;}if(op==='clip'){clipDrawer(el.dataset.track,id);return;}if(op==='settings'){settings();return;}if(op==='routing'){routing(id);return;}if(op==='add'){openDrawer('Add track','<div class="actions"><button data-op="create_midi">＋ MIDI track</button><button data-op="create_audio">＋ Audio track</button><button data-op="create_return">＋ Return track</button></div>','add');return;}if(op.startsWith('create_')){await act('track_create',{kind:op.slice(7)});return;}if(op==='next'||op==='previous'){navigateScenes(sceneOffset+(op==='next'?8:-8));return;}
+ if(op==='record'){act('song_set',{property:'record_mode',value:!state.record});return;}if(op==='metro'){act('song_set',{property:'metronome',value:!state.metronome});return;}if(['mute','solo','arm'].includes(op)){toggle(id,op);return;}if(op==='device'){openDeviceDrawer(id);return;}if(op==='track'){trackDrawer(id);return;}if(op==='clip'){clipDrawer(el.dataset.track,id);return;}if(op==='settings'){settings();return;}if(op==='routing'){routing(id);return;}if(op==='add'){openDrawer('Add track','<div class="actions"><button data-op="create_midi">＋ MIDI track</button><button data-op="create_audio">＋ Audio track</button><button data-op="create_return">＋ Return track</button></div>','add');return;}if(op.startsWith('create_')||op==='scene_create'){await createAndOpen(el,op==='scene_create'?null:op.slice(7));return;}if(op==='next'||op==='previous'){navigateScenes(sceneOffset+(op==='next'?8:-8));return;}
  if(op==='duplicate_track'){act('track_duplicate',{target:id});return;}if(op==='delete_track'){if(confirm('Delete this track? You can undo in Live.'))act('track_delete',{target:id});return;}
  if(op==='clip_create'){await act(op,{target:id,length:Number($('#cliplength').value)});return;}if(op==='clip_delete'){if(confirm('Delete this clip?'))await act(op,{target:id});return;}if(op==='clip_quantize'){act(op,{target:id,grid:5,amount:1});return;}
- if(op==='scene'){const s=state.scenes.find(x=>x.id===id);openDrawer(s.name,`${field('Name',`<input data-edit="scene_name" data-target="${id}" value="${esc(s.name)}">`)}<div class="actions"><button data-op="scene_fire" data-target="${id}">▶ Launch scene</button><button data-op="scene_duplicate" data-target="${id}">Duplicate</button><button data-op="scene_delete" data-target="${id}" class="danger">Delete</button></div>`,'scene',id);return;}if(op==='scene_delete'&&!confirm('Delete this scene?'))return;
+ if(op==='scene'){const scene=state.scenes.find(x=>x.id===id);if(scene)sceneDrawer(scene);return;}if(op==='scene_delete'&&!confirm('Delete this scene?'))return;
  if(op==='arrclip'){const t=trackBy(el.dataset.track),c=t.arrangement.find(c=>c.id===id);openDrawer(c.name,`<p class="hint">Arrangement clip, beats ${c.start.toFixed(2)}–${c.end.toFixed(2)}</p><button data-op="seek" data-beat="${c.start}">Move playhead here</button>`,'arrclip',id);return;}if(op==='seek'){act('song_set',{property:'current_song_time',value:Number(el.dataset.beat)});return;}
  // A launch or stop pulses from the tap until Live reports its own state (or answers).
  if(['clip_fire','clip_stop','scene_fire','track_stop','stop_all'].includes(op)){el.classList.add('queued');Promise.resolve(act(op,id?{target:id}:{})).finally(()=>setTimeout(()=>el.classList.remove('queued'),250));return;}
@@ -431,7 +553,8 @@ document.addEventListener('pointerdown',e=>{
  if(!DeviceGestures.begin(e.pointerId,'html-range',[id]))return;
  const surface=hit||input;surface.focus({preventScroll:true});surface.setPointerCapture(e.pointerId);
  const axis=input.closest('.ut-dial,.af-value')?'either':input.matches('.fader')?'vertical':'horizontal';
- rangeGestures.set(e.pointerId,{input,surface,pointer:e.pointerId,motion:DeviceGestures.scalar(Number(input.value),e,axis)});
+ const rangeWidth=axis==='horizontal'&&e.pointerType==='mouse'?input.getBoundingClientRect().width:0;
+ rangeGestures.set(e.pointerId,{input,surface,pointer:e.pointerId,motion:DeviceGestures.scalar(Number(input.value),e,axis,rangeWidth)});
 });
 document.addEventListener('pointermove',e=>{
  const g=rangeGestures.get(e.pointerId);if(!g||!DeviceGestures.canWrite(Number(g.input.dataset.param),g.pointer))return;e.preventDefault();
@@ -473,22 +596,74 @@ function pinButton(kind,id,name){const on=pins.has(kind,id);return `<button clas
 function updateDrawerPin(){const button=$('#drawerPin'),kind=activeDrawer?.kind,id=activeDrawer?.id;button.hidden=!['device','track'].includes(kind);if(button.hidden)return;const target=kind==='track'?trackBy(id):deviceLocation(id)?.device;if(!target){button.hidden=true;return;}const on=pins.has(kind,id);button.classList.toggle('is-pinned',on);button.dataset.op='pin_toggle';button.dataset.pinKind=kind;button.dataset.target=id;button.setAttribute('aria-pressed',String(on));button.setAttribute('aria-label',`${on?'Unpin':'Pin'} ${target.name}`);const html=pinIcon+`<span>${on?'Pinned':'Pin'}</span>`;if(button.dataset.pinState!==String(on)){button.innerHTML=html;button.dataset.pinState=String(on);}}
 function togglePin(kind,id){const t=kind==='track'?trackBy(id):deviceLocation(id)?.track,d=kind==='device'?deviceLocation(id)?.device:null,existing=pins.items.find(p=>p.kind===kind&&p.id===id);if(!existing&&!t)return;try{pins.toggle(existing||{kind,id,trackId:t.id,trackKind:t.kind,trackName:t.name,name:d?.name||t.name,className:d?.className||''});}catch(e){toast(e.message);}updateDrawerPin();$('#pinCount').textContent=pins.items.length?`(${pins.items.length})`:'';reportView();if(view==='pinned')renderPinned();else document.querySelectorAll(`[data-op="pin_toggle"][data-pin-kind="${kind}"][data-target="${id}"]`).forEach(b=>{const on=pins.has(kind,id);b.classList.toggle('is-pinned',on);b.setAttribute('aria-pressed',String(on));});pollPinnedDevices();}
 function pinTarget(pin){const t=trackBy(pin.trackId);if(!t||t.kind!==pin.trackKind)return null;if(pin.kind==='track')return t;const location=deviceLocation(pin.id);return location?.track.id===pin.trackId&&location.device.className===pin.className?location.device:null;}
-function genericDeviceBody(d,all=false,search=''){const profile=deviceProfile(d);if(profile&&!all)return profile.render(d);return `${profile?`<button class="ut-all" data-op="device_parameter_view" data-device="${d.id}">${esc(d.name)} device view</button>`:''}<p class="hint">Controls use Live’s actual units and available choices.</p>${d.parameters.map(p=>`<div class="parameter" data-name="${esc(p.name.toLowerCase())}" ${search&&!p.name.toLowerCase().includes(search.toLowerCase())?'hidden':''}><label>${esc(p.name)}<output data-value="${p.id}">${esc(DeviceUI.formatDisplay(p.display)||Number(p.value).toFixed(p.quantized?0:3))}</output></label>${parameterControl(p)}<div class="paramactions">${p.defaultValue!==null?`<button class="paramreset" aria-label="Reset ${esc(p.name)}" data-op="reset_parameter" data-target="${p.id}" data-value="${p.defaultValue}" ${p.enabled&&hostOnline?'':'disabled'}>Reset</button>`:''}${p.automation===2?`<button class="paramreset" data-op="parameter_automation" data-target="${p.id}">Re-enable automation</button>`:''}</div></div>`).join('')}`;}
+function genericPower(d){
+ return d.parameters.find(p=>p.name==='Device On'&&p.quantized&&p.min===0&&p.max===1);
+}
+function devicePowerButton(p,name){
+ return `<button class="compact-power" data-op="utility_switch" data-target="${p.id}" aria-label="${esc(name)} power" aria-pressed="false" title="Device power"><span aria-hidden="true"></span></button>`;
+}
+function syncGenericPower(root,p){
+ const button=root?.querySelector('.compact-power');
+ if(!button||!p)return;
+ button.disabled=!hostOnline||!p.enabled;
+ button.setAttribute('aria-pressed',String(p.value===p.max));
+}
+function genericDeviceBody(d,all=false,search=''){
+ const profile=deviceProfile(d);
+ if(profile&&!all)return profile.render(d);
+ const power=genericPower(d);
+ const query=search.toLowerCase();
+ const rows=d.parameters.filter(p=>p!==power).map(p=>{
+  const choices=p.quantized&&p.items?.length&&p.items.length===p.max-p.min+1;
+  const value=DeviceUI.formatDisplay(p.display)||Number(p.value).toFixed(p.quantized?0:3);
+  const reset=p.defaultValue!=null?`<button class="compact-reset" aria-label="Reset ${esc(p.name)}" title="Reset to default" data-op="reset_parameter" data-target="${p.id}" data-value="${p.defaultValue}" ${p.enabled&&hostOnline?'':'disabled'}>↺</button>`:'';
+  const automation=p.automation===2?`<button class="compact-reset" aria-label="Re-enable automation for ${esc(p.name)}" title="Re-enable automation" data-op="parameter_automation" data-target="${p.id}">↝</button>`:'';
+  return `<div class="parameter compact-param" data-name="${esc(p.name.toLowerCase())}" ${query&&!p.name.toLowerCase().includes(query)?'hidden':''}><label><span>${esc(p.name)}</span>${choices?'':`<output data-value="${p.id}">${esc(value)}</output>`}</label><div class="compact-control">${parameterControl(p)}${automation}${reset}</div></div>`;
+ }).join('');
+ const back=profile?`<button class="ut-all" data-op="device_parameter_view" data-device="${d.id}">Device view</button>`:'';
+ return `<div class="compact-params">${rows||'<p class="hint">No additional parameters exposed by Live.</p>'}</div>${back}`;
+}
 function pinnedTrackBody(t){return `<div class="pinned-track-controls"><div class="toggles">${t.kind!=='master'?`<button class="activator ${!t.mute?'active':''}" data-op="mute" data-target="${t.id}">On</button><button class="solo ${t.solo?'active':''}" data-op="solo" data-target="${t.id}">Solo</button>`:''}${t.canArm?`<button class="arm ${t.arm?'active':''}" data-op="arm" data-target="${t.id}">● Arm</button>`:''}</div>${[t.volume,t.pan,...t.sends].map((p,i)=>`<label class="pinned-track-param"><span>${i===0?'Volume':i===1?'Pan':'Send '+String.fromCharCode(63+i)}<output data-read="${p.id}">${esc(DeviceUI.formatDisplay(p.display))}</output></span>${parameterControl(p)}</label>`).join('')}<div class="meter pinned-meter" data-meter="${t.id}"><i></i></div><button data-op="track" data-target="${t.id}">Track settings</button></div>`;}
 function renderPinned(){
- const main=$('#main');if(!main.querySelector('.pinned-grid'))main.innerHTML='<section class="pinned-page"><h1 class="pinned-title">Pinned</h1><div class="pinned-grid"></div></section>';
+ const main=$('#main');if(!main.querySelector('.pinned-grid'))main.innerHTML='<section class="pinned-page"><div class="pinned-toolbar"><h1 class="pinned-title">Pinned</h1><button data-op="pin_layout_edit">Edit layout</button></div><div class="pinned-grid"></div></section>';
+ const edit=main.querySelector('[data-op="pin_layout_edit"]');
+ edit.textContent=editingPins?'Done':'Edit layout';
+ edit.setAttribute('aria-pressed',String(editingPins));
+ edit.hidden=!pins.items.length;
  const grid=main.querySelector('.pinned-grid'),keys=new Set(pins.items.map(p=>p.kind+':'+p.id));for(const card of grid.querySelectorAll('.pinned-card'))if(!keys.has(card.dataset.pinKey))card.remove();
  let empty=main.querySelector('.pinned-empty');if(!pins.items.length){if(!empty){empty=document.createElement('p');empty.className='pinned-empty';empty.textContent='Open a device or track and tap Pin to build your control panel.';grid.append(empty);}return;}empty?.remove();
- for(const pin of pins.items){
+ for(const [index,pin] of pins.items.entries()){
   const key=pin.kind+':'+pin.id,target=pinTarget(pin),t=trackBy(pin.trackId);let card=[...grid.children].find(c=>c.dataset.pinKey===key);
-  if(!card){card=document.createElement('article');card.className='pinned-card';card.dataset.pinKey=key;card.dataset.device=pin.kind==='device'?pin.id:'';card.innerHTML='<div class="pinned-card-head"></div><fieldset class="pinned-card-body"></fieldset>';grid.append(card);}
+  if(!card){card=document.createElement('article');card.className='pinned-card';card.dataset.pinKey=key;card.dataset.pinKind=pin.kind;card.dataset.pinId=pin.id;card.dataset.device=pin.kind==='device'?pin.id:'';card.innerHTML='<div class="pinned-card-head"></div><fieldset class="pinned-card-body"></fieldset>';grid.append(card);}
+  if(grid.children[index]!==card)grid.insertBefore(card,grid.children[index]||null);
   const head=card.querySelector('.pinned-card-head'),body=card.querySelector('.pinned-card-body'),d=target&&pin.kind==='device'?deviceModels.get(pin.id)?.data:null;
-  const title=target?.name||pin.name,subtitle=pin.kind==='device'?(t?.name||pin.trackName):'Track controls';const headingKey=JSON.stringify([title,subtitle,pin.kind,pin.id]);if(head.dataset.heading!==headingKey){head.innerHTML=`<div><span>${esc(subtitle)}</span><h2>${esc(title)}</h2></div>${pinButton(pin.kind,pin.id,title)}`;head.dataset.heading=headingKey;}card.style.setProperty('--pin-color',color(t?.color));body.disabled=!hostOnline||!target;
   const profile=d&&deviceProfile(d);
+  const all=pinnedAll.has(pin.id);
+  const power=d&&(!profile||all)?genericPower(d):null;
+  const title=target?.name||pin.name;
+  const subtitle=pin.kind==='device'?(t?.name||pin.trackName):'Track controls';
+  const headingKey=JSON.stringify([title,subtitle,power?.id,profile?.spec.id,editingPins]);
+  if(head.dataset.heading!==headingKey){
+   const layout=editingPins?`<div class="pin-layout-controls"><button data-op="pin_move" data-direction="-1" aria-label="Move ${esc(title)} earlier" title="Move earlier">←</button><button data-op="pin_move" data-direction="1" aria-label="Move ${esc(title)} later" title="Move later">→</button><select class="pin-width" aria-label="Width for ${esc(title)}"><option value="auto">Auto</option><option value="compact">Compact</option><option value="wide">Wide</option></select></div>`:'';
+   const viewToggle=profile?`<button class="pinned-view-toggle" data-op="device_parameter_view" aria-pressed="false">All parameters</button>`:'';
+   head.innerHTML=`${power?devicePowerButton(power,title):''}<div class="pinned-card-label"><h2>${esc(title)}</h2><span>${esc(subtitle)}</span></div>${layout||viewToggle+pinButton(pin.kind,pin.id,title)}`;
+   head.dataset.heading=headingKey;
+  }
+  if(editingPins){
+   const moves=head.querySelectorAll('[data-op="pin_move"]');
+   moves[0].disabled=index===0;
+   moves[1].disabled=index===pins.items.length-1;
+   head.querySelector('.pin-width').value=pin.width||'auto';
+  }
+  head.querySelector('.pinned-view-toggle')?.setAttribute('aria-pressed',String(all));
+  syncGenericPower(head,power);
+  card.style.setProperty('--pin-color',color(t?.color));
+  body.disabled=!hostOnline||!target;
   const loading=pin.kind==='device'&&t?.kind===pin.trackKind&&t.pending;
   const mode=!target?(loading?'loading':'missing'):pin.kind==='track'?'track:'+JSON.stringify([t.volume.id,t.pan.id,t.sends.map(p=>p.id),t.canArm]):!d?'loading':(profile?.spec.id||'generic')+':'+!!pinnedAll.has(pin.id)+':'+d.parameters.map(p=>p.id).join(',');
-  card.classList.toggle('pinned-wide',pin.kind==='device'&&['AutoFilter2','Eq8','Echo'].includes(target?.className||pin.className));
-  if(card.dataset.mode!==mode){card.dataset.mode=mode;body.innerHTML=mode==='missing'?'<p class="hint">This target is no longer available in the current set.</p>':mode==='loading'?'<p class="hint">Loading device…</p>':pin.kind==='track'?pinnedTrackBody(t):genericDeviceBody(d,pinnedAll.has(pin.id));}
+  const naturallyWide=pin.kind==='device'&&['AutoFilter2','Eq8','Echo'].includes(target?.className||pin.className);
+  card.classList.toggle('pinned-wide',pin.width==='wide'||(pin.width!=='compact'&&naturallyWide));
+  if(card.dataset.mode!==mode){card.dataset.mode=mode;body.innerHTML=mode==='missing'?'<p class="hint">This target is no longer available in the current set.</p>':mode==='loading'?'<p class="hint">Loading device…</p>':pin.kind==='track'?pinnedTrackBody(t):genericDeviceBody(d,all);}
   if(d)DeviceUI.update(body,d,id=>parameterSync.status(id));
   if(target&&pin.kind==='track'){
    for(const p of [t.volume,t.pan,...t.sends]){for(const input of body.querySelectorAll(`[data-param="${p.id}"]`))if(DeviceGestures.owned(p.id)&&parameterSync.status(p.id)!=='pending')input.value=p.value;for(const out of body.querySelectorAll(`[data-read="${p.id}"]`))if(parameterSync.status(p.id)!=='pending')out.textContent=DeviceUI.formatDisplay(p.display);}

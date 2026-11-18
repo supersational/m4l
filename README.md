@@ -6,10 +6,13 @@ Live source is in [`Pocket Live/`](Pocket%20Live/).
 
 ## Use Pocket Live
 
-Drag [`Pocket Live.amxd`](devices/Pocket%20Live/Pocket%20Live.amxd) onto an audio
-track in Ableton Live with Max for Live. Keep the whole
-[`devices/Pocket Live/`](devices/Pocket%20Live/) folder together: the device
-loads its supporting files from there. No build or deployment is needed.
+Download the **Pocket Live release ZIP** and extract the entire folder. If
+you cloned this repo, use the [`devices/Pocket Live/`](devices/Pocket%20Live/)
+folder instead. Drag `Pocket Live.amxd` onto an audio track in Ableton Live
+with Max for Live. Keep the supporting files beside it.
+
+The package includes the browser controller and is configured to use the
+hosted Pocket Live relay in Cloud mode. You can use the device as shipped.
 
 Choose **Local** to control Live from another browser on the same Wi-Fi, or
 **Cloud** to use the included relay over the internet. Scan the QR code or
@@ -20,6 +23,8 @@ click **Open Controller**. Anyone with the private link can control the set.
 Pocket Live uses a Cloudflare Worker to serve the web controller and a
 SQLite-backed Durable Object to relay WebSocket messages. This runs on
 [Cloudflare Workers Free within its quotas](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+The included config throttles new sessions and new WebSocket connections per IP.
+These limits reduce abuse; they do not cap total account usage.
 
 With Node.js, npm, Python 3 and a Cloudflare account, run from the repo root:
 

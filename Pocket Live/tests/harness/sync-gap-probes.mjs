@@ -192,9 +192,8 @@ try {
           "Pagination probe requires the eight-scene disposable fixture",
         );
       try {
-        await A.locator("nav")
-          .getByRole("button", { name: "＋ Scene", exact: true })
-          .click();
+        await A.locator(".set-actions summary").click();
+        await A.getByRole("button", { name: "Add scene", exact: true }).click();
         await poll(
           () => native.call("detail_snapshot"),
           (d) => d.sceneCount === 9,

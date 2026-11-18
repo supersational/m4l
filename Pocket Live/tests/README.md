@@ -93,3 +93,16 @@ dialog closes. It needs Accessibility permission. Other runs use only the Kernel
 
 The profile fixtures in `fixtures/` use synthetic IDs and do not need any
 capture datasets or private session files.
+
+## Check the Add Device catalog in Live
+
+With AbletonKernel running and playback and recording stopped, run:
+
+```sh
+python3 tests/harness/device-catalog.py --temporary-tracks
+```
+
+The script calls Live's native insertion API for each menu entry and reads back
+the resulting device. It uses empty temporary audio and MIDI tracks, removes
+them after the run, and leaves the Set unsaved. Availability depends on the
+installed Live version and edition.

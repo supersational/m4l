@@ -31,6 +31,23 @@ function resetCase(){run('resetInteractions();hostOnline=true;snapshotReady=true
  assert(packets.length>=8&&packets.length<=15,`expected bounded streaming, got ${packets.length}`);
  const expected=.5+60/480;emit('pointerup',hit,{clientX:160});await ackAll();
  assert(Math.abs(packets.at(-1).value-expected)<1e-9);const count=packets.length;advance(500);await ackAll();assert.equal(packets.length,count,'no duplicate final write');
+ // Mouse movement on a wide range tracks its width and preserves the grab point.
+ resetCase();
+ const range={...input,closest:s=>s==='input[type=range][data-param]'?range:null,matches:()=>false,getBoundingClientRect:()=>({width:600}),focus(){},blur(){},setPointerCapture(){},dispatchEvent:event=>emit(event.type,range,event)};
+ const mouse={pointerType:'mouse'},moveRange=x=>emit('pointermove',range,{...mouse,clientX:x});
+ emit('pointerdown',range,mouse);assert.equal(packets.length,0);
+ moveRange(500);assert.equal(range.value,1);
+ moveRange(450);assert.equal(range.value,1,'reversing beyond the right end stays at maximum');
+ moveRange(250);assert.equal(range.value,.75,'150px is a quarter of the range');
+ moveRange(-350);assert.equal(range.value,0);
+ moveRange(-300);assert.equal(range.value,0,'reversing beyond the left end stays at minimum');
+ moveRange(100);assert(Math.abs(range.value-.5)<1e-9,'returning to the grab point restores the value');
+ emit('pointerup',range,mouse);await ackAll();assert(Math.abs(packets.at(-1).value-.5)<1e-9);
+ // Touch still starts from the current value and reverses immediately at a limit.
+ resetCase();range.value=.5;emit('pointerdown',range);
+ emit('pointermove',range,{clientX:500});assert.equal(range.value,1);
+ emit('pointermove',range,{clientX:452});assert.equal(range.value,.9);
+ emit('pointerup',range);await ackAll();
  // A reset (button or double-click) cannot steal another finger's parameter.
  resetCase();emit('pointerdown',hit);emit('click',reset);emit('dblclick',hit);assert.equal(packets.length,0);assert.equal(fixture.parameters[0].value,.5);emit('pointerup',hit);
  // Offline cancellation drops streams/claims and blocks all new HTML gestures.

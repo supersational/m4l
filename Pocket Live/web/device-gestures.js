@@ -34,17 +34,23 @@ const DeviceGestures=(()=>{
  }
  function flush(id,pointer){id=Number(id);const e=streams.get(id);if(!e||e.pointer!==pointer)return;clearTimeout(e.timer);streams.delete(id);if(canWrite(id,pointer)&&(!e.sent||!Object.is(e.sentValue,e.value)))e.write(id,e.value,pointer);}
 
- // Distances are CSS screen pixels, independent of a control's displayed size.
- // Choose one axis after a small dead zone so diagonal drags do not double speed.
- function scalar(value,event,axis='either'){
-  return {value,axis,chosen:axis==='vertical'?'y':axis==='horizontal'?'x':null,x:event.clientX,y:event.clientY,originX:event.clientX,originY:event.clientY,pixels:event.pointerType==='touch'?480:360};
+ // Mouse drags on horizontal ranges use the displayed width. Other scalars
+ // use screen-space sensitivity and choose an axis if they are free to do so.
+ function scalar(value,event,axis='either',rangeWidth=0){
+  const keepOvershoot=axis==='horizontal'&&event.pointerType==='mouse'&&rangeWidth>0;
+  const pixels=keepOvershoot?rangeWidth:event.pointerType==='touch'?480:360;
+  return {value,axis,chosen:axis==='vertical'?'y':axis==='horizontal'?'x':null,x:event.clientX,y:event.clientY,originX:event.clientX,originY:event.clientY,pixels,keepOvershoot};
  }
  function moveScalar(g,event,min,max){
   if(!g.chosen){const dx=event.clientX-g.originX,dy=event.clientY-g.originY;if(Math.max(Math.abs(dx),Math.abs(dy))<3)return g.value;g.chosen=Math.abs(dx)>Math.abs(dy)?'x':'y';}
   const delta=g.chosen==='x'?event.clientX-g.x:g.y-event.clientY;
   g.x=event.clientX;g.y=event.clientY;
-  g.value=Math.max(min,Math.min(max,g.value+delta*(max-min)/g.pixels*(event.shiftKey?.1:1)));
-  return g.value;
+  const next=g.value+delta*(max-min)/g.pixels*(event.shiftKey?.1:1);
+  const bounded=Math.max(min,Math.min(max,next));
+  // Keep the mouse's position outside the range so returning over the track
+  // picks up from the same point, while the displayed value stays bounded.
+  g.value=g.keepOvershoot?next:bounded;
+  return bounded;
  }
  // CSS declares drag ownership before a gesture starts. Safari's legacy gesture
  // events get a second guard so two controls never turn into a page pinch.
