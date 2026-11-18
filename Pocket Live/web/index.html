@@ -1,4 +1,16 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#303030"><title>Pocket / Live</title><link rel="stylesheet" href="/style.css"></head><body>
+<main class="setup-page">
+  <section aria-labelledby="setup-title">
+    <p class="setup-brand">Pocket / Live</p>
+    <h1 id="setup-title">Connect to Ableton Live</h1>
+    <p>Pocket / Live needs a connection to your Live Set before you can control it from this browser.</p>
+    <ol>
+      <li>Download and unzip Pocket Live. Drag <strong>Pocket Live.amxd</strong> onto an audio track in Ableton Live.</li>
+      <li>In the device, scan its QR code or click <strong>Open Controller</strong>.</li>
+    </ol>
+    <a class="setup-download" href="https://github.com/supersational/m4l/releases/latest">Download on GitHub</a>
+  </section>
+</main>
 <header class="controller-header">
   <div class="brand"><b>Pocket / Live</b><span id="connection" class="connection">Connecting</span></div>
   <div class="transport" role="group" aria-label="Transport">
@@ -45,6 +57,6 @@
     </div>
   </details>
 </nav>
-<div id="offline" class="offline">Open the Pocket / Live device in Ableton to connect. This page reconnects automatically.</div><main id="main"><section class="welcome"><h1>Your Live Set, within reach.</h1><p>Load Pocket / Live in Ableton, then scan its QR code. The private link connects this screen to your current set.</p><p id="help">No session key found in this URL.</p></section></main>
+<div id="offline" class="offline">Open the Pocket / Live device in Ableton to connect. This page reconnects automatically.</div><main id="main"><section class="welcome"><h1>Connecting to your Live Set</h1><p>Keep Pocket / Live open in Ableton while the controller connects.</p></section></main>
 <footer><button data-op="previous">↑ Scenes</button><span id="scenerange"></span><button data-op="next">↓ Scenes</button><span class="spacer"></span><span id="latency"></span><button data-op="refresh">↻ Refresh</button><button data-op="share">Copy link</button></footer>
 <aside id="drawer" hidden><div class="drawerhead"><div id="drawerPower"></div><h2 id="drawerTitle"></h2><div id="drawerDeviceNav" class="drawer-device-nav" role="group" aria-label="Devices on this track" hidden><button data-op="device_previous" aria-label="Previous device">‹</button><button data-op="device_next" aria-label="Next device">›</button></div><button id="drawerPin" class="pin-button" hidden></button><button data-op="close" aria-label="Close panel">✕</button></div><div id="drawerBody"></div></aside><div id="toast" role="status"></div><script src="/device-gestures.js"></script><script src="/device-ui.js"></script><script src="/parameter-sync.js"></script><script src="/utility-profile.js"></script><script src="/recording.js"></script><script src="/waveform.js"></script><script src="/filter-model.js"></script><script src="/filter-layout.js"></script><script src="/auto-filter-profile.js"></script><script src="/svg-device-controls.js"></script><script src="/echo-renderer.js"></script><script src="/echo-signature.js"></script><script src="/echo-profile.js"></script><script src="/eq8-renderer.js"></script><script src="/eq8-signature.js"></script><script src="/eq8-profile.js"></script><script src="/eq8-controls.js"></script><script src="/pins.js"></script><script src="/app.js"></script></body></html>

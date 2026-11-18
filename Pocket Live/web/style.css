@@ -338,3 +338,73 @@ body[data-transport=local] .controller-nav{background:#37332e}
  .controller-header button,.tempo-value,.view-tabs button,.set-actions summary,
  #backarrangement,.set-actions-panel button{min-height:44px}
 }
+
+body[data-page="controller"] > .setup-page,
+body:not([data-page="controller"]) > :is(.controller-header, .controller-nav, #offline, #main, footer, #drawer, #toast) {
+  display: none;
+}
+
+.setup-page {
+  flex: 1;
+  overflow: auto;
+  padding: clamp(32px, 10vh, 104px) 24px 40px;
+  background: #262626;
+}
+
+.setup-page section {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.setup-brand {
+  color: var(--orange);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+
+.setup-page h1 {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.12;
+  color: #f5f5f5;
+}
+
+.setup-page p:not(.setup-brand),
+.setup-page ol {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #d0d0d0;
+}
+
+.setup-page ol {
+  padding-inline-start: 1.5em;
+  margin: 20px 0;
+}
+
+.setup-page li + li {
+  margin-top: 8px;
+}
+
+.setup-download {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--orange);
+  color: #21180d;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.setup-download:hover {
+  text-decoration: underline;
+}
+
+.setup-download:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
