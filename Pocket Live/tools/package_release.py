@@ -47,7 +47,8 @@ def esbuild(*args):
 def build_web():
     """Bundle the browser assets shared by the Worker and the local device."""
     WEB_DIST.mkdir(exist_ok=True)
-    for renderer, symbol in (("echo", "EchoRenderer"), ("eq8", "EQ8Renderer")):
+    for renderer, symbol in (("echo", "EchoRenderer"), ("eq8", "EQ8Renderer"),
+                             ("operator", "OperatorRenderer")):
         esbuild(WEB / f"device-renderers/{renderer}/index.js", "--bundle",
                 "--format=iife", f"--global-name={symbol}", "--target=es2020",
                 f"--outfile={WEB / (renderer + '-renderer.js')}")

@@ -737,3 +737,21 @@ footer {
   .compact-control input { height: 44px; }
   #drawerBody > .ut-all { margin: 0 0 8px; }
 }
+
+/* Operator panel */
+.operator-panel{background:#2a2c32;border:1px solid #202226;border-radius:5px;overflow:hidden}
+.operator-panel .svg-device-host{aspect-ratio:844/219}
+.operator-panel .op-title { fill: #e6e9ef; font-size: 10px; font-weight: 600; }
+.operator-panel .op-badge-dim { fill: #8b909a; font-size: 8px; font-weight: 600; letter-spacing: 0.08em; }
+.operator-panel .op-lbl { fill: #c6cad4; font-size: 8px; font-weight: 500; }
+.operator-panel .op-val { fill: #d7dbe4; font-size: 8.5px; font-weight: 500; }
+.operator-panel .op-val-dim { fill: #70747a; font-size: 8px; }
+.operator-panel .op-osc-badge { font-size: 10px; font-weight: 700; }
+.operator-panel .op-card-title { fill: #e2e5ed; font-size: 9.5px; font-weight: 600; }
+.operator-panel .op-pane-title { fill: #d7dbe4; font-size: 9px; font-weight: 600; }
+.operator-panel .op-sub-lbl { fill: #b4b9c4; font-size: 7.8px; }
+.operator-panel .op-sub-val { font-size: 8.5px; font-weight: 500; }
+.operator-panel .op-combo-val { font-size: 8px; font-weight: 500; }
+.operator-panel .op-mini { fill: #b4b9c4; font-size: 7.5px; }
+.operator-panel .op-mini-bold { font-size: 7.5px; font-weight: 700; }
+.operator-panel .op-ax-tag { fill: #868b96; font-size: 7.2px; font-style: italic; }

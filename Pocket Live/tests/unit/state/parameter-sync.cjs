@@ -68,6 +68,34 @@ const tick=()=>new Promise(setImmediate);
  assert.equal(delayed[3].value,.8,'a failed earlier request must still drain latest queued intent');
  delayed[3].resolve({value:.8,display:'80 %'});await tick();
  assert.equal(queued.status(20),'idle');
+ // Other controllers can write between our request, ACK and the end of the
+ // stale-snapshot guard. With no later patch, a masked update must request a
+ // fresh read or the optimistic value would remain on this browser forever.
+ let clock=5000;
+ const conflicts=[];
+ const receivers=[];
+ const converging=new ParameterSync({
+  now:()=>clock,
+  send:()=>new Promise(resolve=>receivers.push(resolve)),
+  commit(){},state(){},error:e=>{throw e;},
+  recheck:(id,after)=>conflicts.push([id,after])
+ });
+ const incoming=(id,value)=>converging.reconcile({parameters:[{id,value,display:String(value)}]}).parameters[0].value;
+ converging.write(60,.25);
+ assert.equal(incoming(60,.5),.25,'a remote patch cannot replace pending input');
+ assert.deepEqual(conflicts,[],'wait for ACK before checking a pending conflict');
+ receivers[0]({value:.25,display:'25 %'});await tick();
+ assert.deepEqual(conflicts,[[60,5400]],'a divergent patch arriving before ACK schedules readback');
+ converging.write(61,.3);receivers[1]({value:.3,display:'30 %'});await tick();
+ assert.equal(incoming(61,.3),.3);
+ assert.equal(conflicts.length,1,'matching updates must not trigger a fresh read');
+ clock=5020;
+ assert.equal(incoming(61,.75),.3,'protect the control until the confirmed guard ends');
+ assert.deepEqual(conflicts,[[60,5400],[61,5400]],'a competing write after ACK also schedules readback');
+ clock=5400;
+ assert.equal(incoming(60,.5),.5,'the scheduled refresh now accepts authoritative state');
+ assert.equal(incoming(61,.75),.75);
+ assert.equal(conflicts.length,2,'an authoritative refresh after the guard must not loop');
  // An immediately throwing transport must release the queue just like a rejected promise.
  let attempts=0;const immediateErrors=[],immediateCommits=[];
  const immediate=new ParameterSync({send:()=>{if(++attempts===1)throw Error('not connected');return {value:.6};},commit:(id,result)=>immediateCommits.push(result.value),state(){},error:e=>immediateErrors.push(e.message)});

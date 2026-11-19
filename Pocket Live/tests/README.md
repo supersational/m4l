@@ -25,11 +25,10 @@ Node dependencies (`npm ci`), and Python able to run this checkout's AMXD builde
 The main browser suite needs only Python standard library + the existing Kernel
 client; it does not require Python `websockets`. `POCKET_LIVE_PYTHON` selects a
 Python interpreter. `ABLETON_KERNEL_PATH` selects a nonstandard Kernel checkout.
-Real browser acceptance also uses the separate py2max Live lab to load its QA
-device. The default is the sibling `py2max/live_test_lab` checkout. Set
-`POCKET_LIVE_LAB_ROOT` if it is elsewhere, and add that py2max checkout to Live
-Places as `py2max`. Neither dependency is needed to build the release or run
-the offline checks.
+Add the development repository folder to Live’s Places. The test runner loads
+its generated AMXD from the ignored workspace test artifacts. If the Places
+label differs from the checkout folder name, set `POCKET_LIVE_PLACES_NAME`.
+AbletonKernel is only needed for native tests and capture.
 No other Kernel client may run concurrently.
 
 Normal `npm test` checks the fixture before editing: exactly two ordinary tracks,

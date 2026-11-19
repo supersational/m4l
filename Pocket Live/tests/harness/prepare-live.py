@@ -4,7 +4,7 @@
 Default is read-only. --allow-live-edits builds/loads the current QA controller
 on Lab Audio, retaining Lab MIDI's reference devices. --reset additionally
 recreates the whole unsaved fixture; no Set is ever saved by this helper.
-QA output stays in the configured py2max Live lab, outside the release folder.
+QA output stays in ignored test artifacts, outside the release folder.
 """
 import argparse
 import json
@@ -16,26 +16,72 @@ import traceback
 from live_oracle import LiveOracle
 
 ROOT = Path(__file__).resolve().parents[2]
-LAB_ROOT = Path(os.environ.get('POCKET_LIVE_LAB_ROOT', ROOT.parents[1]/'py2max'/'live_test_lab')).expanduser().resolve()
-QA = LAB_ROOT/'devices'/'PocketLiveAcceptance.amxd'
+ARTIFACTS = ROOT / 'tests' / 'artifacts'
+PLACES_NAME = os.environ.get('POCKET_LIVE_PLACES_NAME', ROOT.parent.name)
+PLACES_ROOT = Path(os.environ.get('POCKET_LIVE_PLACES_ROOT', ROOT.parent)).expanduser().resolve()
 
 
-def build(runtime_root):
-    command = [sys.executable, str(ROOT/'build.py'), '--output', str(QA)]
-    if runtime_root:
-        if not runtime_root.is_dir():
-            raise ValueError('Runtime root does not exist')
-        command += ['--resource-root', str(runtime_root)]
+def prepare_device(runtime):
+    if runtime == ROOT:
+        qa = ARTIFACTS / 'PocketLiveAcceptance.amxd'
+    else:
+        qa = runtime / 'PocketLiveAcceptance.amxd'
+    try:
+        qa.relative_to(ROOT.parent)
+    except ValueError as error:
+        raise ValueError('QA runtime must be inside the development checkout') from error
+    qa.parent.mkdir(parents=True, exist_ok=True)
+    portable = runtime / 'Pocket Live.amxd'
+    if os.environ.get('POCKET_LIVE_RELEASE_PACKAGE'):
+        import shutil
+        shutil.copyfile(portable, qa)
+        return qa
+    command = [sys.executable, str(ROOT/'build.py'), '--output', str(qa),
+               '--resource-root', str(runtime)]
     result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=180)
-    if result.returncode or not QA.is_file():
-        # Compiler output can contain machine/session paths; retain it privately
-        # for diagnosis rather than including it in a JSON runner response.
-        artifacts = ROOT/'tests'/'artifacts'
-        artifacts.mkdir(parents=True, exist_ok=True)
-        log = artifacts/'prepare-live-build.log'
+    if result.returncode or not qa.is_file():
+        log = ARTIFACTS / 'prepare-live-build.log'
         log.write_text(result.stdout + result.stderr)
         log.chmod(0o600)
         raise RuntimeError('QA build failed; inspect tests/artifacts/prepare-live-build.log')
+    return qa
+
+
+def load_device(kernel, qa, track):
+    from time import monotonic, sleep
+
+    parts = qa.relative_to(PLACES_ROOT).parts
+    code = f"""
+target=next(t for t in song.tracks if t.name=={track!r})
+root=next(folder for folder in application.browser.user_folders if folder.name=={PLACES_NAME!r})
+for part in {parts[:-1]!r}:
+    root=next(child for child in root.children if child.name==part)
+item=next(child for child in root.children if child.name in ({qa.name!r},{qa.stem!r}) and child.is_loadable)
+def load_fixture(t=target, device=item):
+    song.view.selected_track=t
+    if len(t.devices): song.view.select_device(t.devices[-1])
+    application.browser.load_item(device)
+kernel.schedule_message(1,load_fixture)
+True
+"""
+    deadline = monotonic() + 12
+    while True:
+        try:
+            kernel.exec(code)
+            break
+        except Exception as error:
+            if not str(error).startswith('StopIteration:'):
+                raise
+            if monotonic() >= deadline:
+                raise RuntimeError('QA patch not visible in Live. Add the development checkout to Places.') from error
+            sleep(.25)
+    deadline = monotonic() + 10
+    while monotonic() < deadline:
+        devices = kernel.exec(f"[d.name for d in next(t for t in song.tracks if t.name=={track!r}).devices]", depth=3)
+        if any(name.startswith(qa.stem) for name in devices):
+            return devices
+        sleep(.1)
+    raise RuntimeError('Live did not confirm that the QA patch loaded')
 
 
 def reset_fixture(oracle):
@@ -101,28 +147,20 @@ def main():
         if not args.allow_live_edits:
             print(json.dumps({'ok': True, 'readOnly': True, 'state': oracle.read()}, allow_nan=False))
             return 0
-        if not (LAB_ROOT/'lab.py').is_file() or not (LAB_ROOT/'devices').is_dir():
-            raise ValueError('Set POCKET_LIVE_LAB_ROOT to the py2max/live_test_lab checkout before running Live edits')
         if args.reset:
             reset_fixture(oracle)
         if not args.track:
             fixture(oracle)
         host = args.track or 'Lab Audio'
-        build(args.runtime_root.resolve() if args.runtime_root else None)
+        qa = prepare_device(runtime)
         # Only replace the QA controller; reference devices, clips and any other
         # devices on either fixture track survive the normal idempotent setup.
         indices = oracle.kernel.exec(f"t=next(t for t in song.tracks if t.name=={host!r})\n[i for i,d in enumerate(t.devices) if d.name.startswith('PocketLiveAcceptance')]", depth=3)
         for index in reversed(indices):
             oracle.kernel.exec(f"t=next(t for t in song.tracks if t.name=={host!r})\nt.delete_device({index})\nTrue")
-        # Reuse Lab's real browser loader while retaining the one locked Kernel
-        # client. Calling Lab() here would retarget Kernel's shared reply port.
-        sys.path.insert(0, str(LAB_ROOT))
-        from lab import Lab
-        lab = Lab.__new__(Lab)
-        lab.k = oracle.kernel
-        devices = lab.load('PocketLiveAcceptance', track=host)
+        devices = load_device(oracle.kernel, qa, host)
         print(json.dumps({'ok': True, 'readOnly': False, 'transport': args.transport,
-                          'qaDevice': str(QA), 'devices': devices, 'state': oracle.read() if args.track else fixture(oracle)}, allow_nan=False))
+                          'qaDevice': str(qa), 'devices': devices, 'state': oracle.read() if args.track else fixture(oracle)}, allow_nan=False))
         return 0
     except Exception as error:
         # Native errors may include evaluated source and paths. JSON output is

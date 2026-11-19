@@ -14,7 +14,10 @@ import time
 from live_oracle import LiveOracle
 
 TRACKS = ('Lab Audio', 'Lab MIDI')
-DEVICES = ('Utility', 'Auto Filter', 'Echo', 'EQ Eight')
+DEVICES = {
+    'Utility': 'StereoGain', 'Auto Filter': 'AutoFilter2',
+    'Echo': 'Echo', 'EQ Eight': 'Eq8', 'Operator': 'Operator',
+}
 DETAILS = '''
 def clip_details(c):
     return dict(name=c.name, midi=bool(c.is_midi_clip), playing=bool(c.is_playing),
@@ -140,12 +143,13 @@ def execute(oracle, request, allow_edits):
     if name not in DEVICES:
         raise ValueError('Device name is not in the native fixture allowlist')
     code = target(request)
-    existing = oracle.kernel.exec(code + f"[i for i,d in enumerate(t.devices) if d.class_name=={dict(zip(DEVICES, ('StereoGain','AutoFilter','Echo','Eq8')))[name]!r} or d.name=={name!r}]", depth=3)
+    existing = oracle.kernel.exec(code + f"[i for i,d in enumerate(t.devices) if d.class_name=={DEVICES[name]!r} or d.name=={name!r}]", depth=3)
     if existing:
         return {'devicePath': [existing[0]], 'inserted': False}
     before = oracle.kernel.exec(code + 'len(t.devices)')
+    category = 'instruments' if name == 'Operator' else 'audio_effects'
     load = code + f"""
-queue=[(application.browser.audio_effects,0)]
+queue=[(application.browser.{category},0)]
 item=None
 visited=0
 while queue and visited<1200:

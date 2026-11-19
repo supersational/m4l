@@ -339,7 +339,7 @@ let devicePaint=0;const DEVICE_SAFETY_MS=30000;
 function applyDevicePatches(list){if(!Array.isArray(list))return;
  for(const next of list){const model=deviceModels.get(next.id)?.data;
   if(next.changed){if(activeDrawer?.kind==='device'&&activeDrawer.id===next.id)loadDevice(next.id,drawerVersion);else if(model)deviceModels.get(next.id).at=0;continue;}
-  if(!model)continue;for(const v of next.params||[]){const p=model.parameters.find(p=>p.id===v.id);if(p){p.value=v.value;p.display=v.display;}}parameterSync.reconcile(model);}
+  if(!model)continue;for(const v of next.params||[]){const p=model.parameters.find(p=>p.id===v.id);if(p){p.value=v.value;p.display=v.display;parameterSync.reconcile({parameters:[p]});}}}
  if(list.some(d=>d.changed&&view==='pinned'))pollPinnedDevices();
  if(!devicePaint)devicePaint=requestAnimationFrame(()=>{devicePaint=0;updateDevicePanels();});}
 // Read-only, for tests: the open device panel's model (the bundle hides these names).
@@ -441,7 +441,7 @@ function renderDrawerPower(d,power){
  syncGenericPower(root,power);
 }
 function drawerUsesParameters(profile){
- return activeDrawer?.allParameters??(phoneLayout?.matches&&['auto-filter','eq-eight','echo'].includes(profile?.spec.id));
+ return activeDrawer?.allParameters??(phoneLayout?.matches&&['auto-filter','eq-eight','echo','operator'].includes(profile?.spec.id));
 }
 function renderDevice(){const d=deviceDetails;if(!d||d.id!==activeDrawer?.id)return;$('#drawerTitle').textContent=d.name;const root=$('#drawerBody'),profile=deviceProfile(d),all=!!drawerUsesParameters(profile),mode=(profile?.spec.id||'generic')+':'+all;renderDrawerPower(d,(!profile||all)&&genericPower(d));if(root.dataset.deviceMode===mode&&root.dataset.deviceId===String(d.id)){DeviceUI.update(root,d,id=>parameterSync.status(id));return;}if(dragging||root.querySelector('input:focus,select:focus'))return;$('#drawerTitle').textContent=d.name;updateDrawerPin();const scroll=$('#drawer').scrollTop;root.innerHTML=(!profile||all?`<input id="paramsearch" type="search" placeholder="Find a parameter…" aria-label="Search device parameters" value="${esc(activeDrawer.search||'')}">`:'')+genericDeviceBody(d,all,activeDrawer.search)+`<div class="section actions"><button data-op="device_add_here"><span aria-hidden="true">＋</span> Add device</button><button class="danger" data-op="device_delete" data-target="${d.id}">Delete device</button></div>`;root.dataset.deviceMode=mode;root.dataset.deviceId=d.id;DeviceUI.update(root,d,id=>parameterSync.status(id));$('#drawer').scrollTop=scroll;}
 
@@ -569,15 +569,37 @@ window.addEventListener('blur',()=>{if(DeviceGestures.busy())resetInteractions()
 window.addEventListener('focus',()=>{if(state&&hostOnline)act('refresh');});
 
 function syncState(id,status){const nodes=new Set(document.querySelectorAll(`[data-control="${id}"],[data-value="${id}"],[data-read="${id}"],[data-param="${id}"],[data-target="${id}"]`));for(const node of nodes){node.dataset.syncState=status;node.setAttribute('aria-busy',String(status==='pending'));const group=node.closest('.parameter');if(group)group.dataset.syncState=status;}}
+const parameterReadbacks=new Set();
+let parameterReadbackTimer=null,parameterReadbackAfter=0;
+function clearParameterReadback(){
+ clearTimeout(parameterReadbackTimer);parameterReadbackTimer=null;parameterReadbackAfter=0;parameterReadbacks.clear();
+}
+function queueParameterReadback(id,after){
+ parameterReadbacks.add(id);
+ if(parameterReadbackTimer!==null&&after<=parameterReadbackAfter)return;
+ clearTimeout(parameterReadbackTimer);parameterReadbackAfter=after;
+ parameterReadbackTimer=setTimeout(()=>{
+  const targets=new Set(parameterReadbacks);
+  clearParameterReadback();
+  if(!hostOnline||!snapshotReady)return;
+  if(state.tracks.some(t=>[t.volume,t.pan,...t.sends].some(p=>targets.has(p.id))))act('refresh');
+  for(const [device,{data}] of deviceModels){
+   if(!data.parameters.some(p=>targets.has(p.id)))continue;
+   if(activeDrawer?.kind==='device'&&activeDrawer.id===device)loadDevice(device,drawerVersion);
+   else deviceModels.get(device).at=0;
+  }
+  pollPinnedDevices();
+ },Math.max(0,after-Date.now()));
+}
 const parameterSync=new ParameterSync({
  send:(target,value)=>send('parameter',{target,value,display:true}),
  commit:(target,result)=>{if(!result||typeof result!=='object')throw Error('Live returned an invalid parameter acknowledgement');updateParameter(target,result.value,result.display);document.querySelectorAll(`[data-value="${target}"],[data-read="${target}"]`).forEach(n=>n.textContent=DeviceUI.formatDisplay(result.display));devicePoll=0;updateDevicePanels();},
- state:syncState,error:e=>{devicePoll=0;toast(e.message);}
+ state:syncState,recheck:queueParameterReadback,error:e=>{devicePoll=0;toast(e.message);}
 });
 // One cancellation boundary for parameter queues, view queues, gesture streams
 // and outstanding reads. Nothing from the old connection may resume afterward.
 function resetInteractions(){
- interactionGeneration++;sceneRead=null;tempoEdit=null;DeviceGestures.clear();parameterSync.reset();EQ8Profile.reset();EchoProfile.reset();
+ interactionGeneration++;sceneRead=null;tempoEdit=null;DeviceGestures.clear();parameterSync.reset();clearParameterReadback();EQ8Profile.reset();EchoProfile.reset();
  rejectPending('Live connection or set changed');
 }
 function updateWriteAvailability(){

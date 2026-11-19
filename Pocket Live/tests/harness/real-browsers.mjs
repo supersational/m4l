@@ -590,10 +590,10 @@ try {
       ),
       name = created.native.tracks.find((t) => !names.includes(t.name)).name;
     await A.getByRole("heading", { name: "Add device · " + name, exact: true }).waitFor();
-    await A.getByRole("searchbox", { name: "Search Live devices" }).waitFor();
+    await A.getByRole("searchbox", { name: "Search devices" }).waitFor();
     await closePanel(A);
     await trackRow(A, name)
-      .getByRole("button", { name: "Track controls", exact: true })
+      .getByRole("button", { name: "Track controls for " + name, exact: true })
       .click();
     await A.locator("input[data-edit=track_name]").fill("Acceptance transient");
     await A.locator("input[data-edit=track_name]").press("Tab");
@@ -609,6 +609,8 @@ try {
         !s.tracks.some((t) => t.name === "Acceptance transient"),
     );
   });
+  for (const page of [A, B, C])
+    await page.getByRole("button", { name: "Session", exact: true }).click();
   await scenario("browser-scene-create-delete", async () => {
     const before = (await call("detail_snapshot")).sceneCount;
     await B.locator(".set-actions summary").click();
@@ -631,8 +633,6 @@ try {
         .waitFor();
     return { sceneCount: result.sceneCount };
   });
-  for (const page of [A, B, C])
-    await page.getByRole("button", { name: "Session", exact: true }).click();
   await scenario("browser-clip-create-rename-double-delete", async () => {
     await trackRow(A, "Lab MIDI")
       .getByRole("button", { name: "Clip options", exact: true })
@@ -691,16 +691,17 @@ try {
           parameter,
         );
         const value = p.min + (p.max - p.min) * 0.42;
-        await call("parameter", {
+        const readback = await call("parameter", {
           track: "Lab Audio",
           devicePath: inserted.devicePath,
           parameter,
           value,
         });
+        requireValue(readback.value, value, "Native parameter write");
         return {
           parameter,
-          native: value,
-          browsers: await parameterViews(parameter, value),
+          native: readback.value,
+          browsers: await parameterViews(parameter, readback.value),
         };
       },
     );
@@ -738,6 +739,38 @@ try {
     for (const page of clients.map((c) => c.page))
       await page.locator("#drawer [data-op=close]").click();
   }
+  await scenario("Operator-mode-and-routing-converge-in-real-Live", async () => {
+    const track = "Lab MIDI";
+    const inserted = await call("device_insert", { track, name: "Operator" });
+    await settle();
+    const faces = clients.map(({ page }) => page.locator("#drawerBody .operator-panel"));
+    for (const {page} of clients) {
+      await trackRow(page, track).getByRole("button", { name: "Operator", exact: true }).click();
+    }
+    await Promise.all(faces.map(face => face.waitFor()));
+    const wave = faces[0].locator('[data-page="osc-a:wave"]');
+    await wave.press("Enter");
+    await faces[0].locator('[data-graph="waveform"]').waitFor();
+    if (await faces[1].locator('[data-graph="waveform"]').count())
+      throw Error("Operator page choice leaked to another browser");
+    await Promise.all(faces.map(face => face.locator('[data-page="global"]').press("Enter")));
+    const before = await parameterRead(track, inserted.devicePath, "Algorithm");
+    const target = before.value === 4 ? 7 : 4;
+    const choice = face => face.locator(`[data-choice="Algorithm"][data-value="${target}"]`);
+    await choice(faces[0]).press("Enter");
+    const deadline = Date.now() + 10000;
+    let native, browser;
+    do {
+      native = (await parameterRead(track, inserted.devicePath, "Algorithm")).value;
+      browser = await Promise.all(faces.map(face => choice(face).getAttribute("aria-pressed")));
+      if (native === target && browser.every(value => value === "true")) break;
+      await delay(100);
+    } while (Date.now() < deadline);
+    requireValue(native, target, "Operator algorithm readback");
+    if (!browser.every(value => value === "true")) throw Error("Operator selection did not converge");
+    await Promise.all(clients.map(({page}) => closePanel(page)));
+    return { native, browser };
+  });
   if (networkSettings?.stallMs) {
     await scenario("one-stalled-browser-recovers-without-blocking-others", async () => {
       const before = Number(await A.getByRole("spinbutton", { name: "Tempo", exact: true }).inputValue());

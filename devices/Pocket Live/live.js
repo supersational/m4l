@@ -376,7 +376,14 @@ function observed(w,args){if(!args||args[0]!==w.prop)return;
   if(String(w.owner).charAt(0)==='d'){replanDevices[w.owner.slice(1)]=true;(patches[w.owner]||(patches[w.owner]={})).changed=1;if(!flushing)flushPatches(true);else patchTask.schedule(0);}
   else if(w.page){pagesChanged=true;if(w.owner!=='song')replanClips[w.owner]=true;}else if(w.owner==='song')songAt=0;else soft[w.owner]=true;
   if(!softBusy)softSync();else softTask.schedule(0);return;}
- var v=Number(args[1]);if(!('last' in w)){w.last=v;return;}if(v===w.last)return;w.last=v;
+ var v=Number(args[1]);
+ if(!('last' in w)){
+  w.last=v;
+  // A device panel can read its parameters before its observers are installed.
+  // Publish a difference from that read so a change during setup is visible.
+  var baseline=w.param&&String(w.owner).charAt(0)==='d'&&displays[w.param];
+  if(!baseline||v===baseline.value)return;
+ }else{if(v===w.last)return;w.last=v;}
  (patches[w.owner]||(patches[w.owner]={}))[w.field==='scene'?'s'+w.target:w.param?'p'+w.param:w.field]=v;
  if(!CONTINUOUS[w.field]){if(!flushing)flushPatches(true);else patchTask.schedule(0);return;}
  // A fader or tempo move: the first change goes at once, the rest at most every CONTINUOUS_MS.

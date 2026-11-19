@@ -186,11 +186,13 @@ try {
   await probe(
     "scene-pagination-unexpectedly-changes-other-browsers",
     async () => {
+      await A.getByRole("button", { name: "Session", exact: true }).click();
       const before = (await native.call("detail_snapshot")).sceneCount;
       if (before !== 8)
         throw Error(
           "Pagination probe requires the eight-scene disposable fixture",
         );
+      let pageOpened = false;
       try {
         await A.locator(".set-actions summary").click();
         await A.getByRole("button", { name: "Add scene", exact: true }).click();
@@ -198,10 +200,13 @@ try {
           () => native.call("detail_snapshot"),
           (d) => d.sceneCount === 9,
         );
-        await A.locator("#scenerange").filter({ hasText: "1–8 / 9" }).waitFor();
+        await Promise.all(pages.map(page =>
+          page.locator("#scenerange").filter({ hasText: "1–8 / 9" }).waitFor()
+        ));
         const untouchedBefore = await A.locator("#scenerange").innerText();
-        await B.getByRole("button", { name: "↓ Scenes", exact: true }).click();
+        await B.getByRole("button", { name: "Next scenes", exact: true }).click();
         await B.locator("#scenerange").filter({ hasText: "9–9 / 9" }).waitFor();
+        pageOpened = true;
         await delay(2200);
         const ranges = await Promise.all(
           pages.map((p) => p.locator("#scenerange").innerText()),
@@ -255,10 +260,7 @@ try {
           action: "Only browser B navigates to scene page two",
         };
       } finally {
-        if ((await native.call("detail_snapshot")).sceneCount === 9) {
-          await B.locator("#scenerange")
-            .filter({ hasText: "9–9 / 9" })
-            .waitFor();
+        if (pageOpened && (await native.call("detail_snapshot")).sceneCount === 9) {
           await B.locator(".track.scenes [data-op=scene]").first().click();
           B.once("dialog", (d) => d.accept());
           await B.locator("[data-op=scene_delete]").click();
